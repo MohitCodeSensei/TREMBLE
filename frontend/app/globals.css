@@ -1,0 +1,103 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+    color-scheme: dark;
+}
+
+body {
+    @apply bg-tremble-bg text-white font-sans antialiased overflow-hidden;
+}
+
+/* --- Monochrome High-Contrast Surfaces --- */
+@layer components {
+    .glass {
+        @apply bg-black border border-zinc-800 rounded-lg;
+    }
+
+    .glass-strong {
+        @apply bg-black border border-zinc-800 rounded-lg;
+    }
+
+    .glass-btn {
+        @apply grid place-items-center rounded-lg bg-black text-white border border-zinc-800 hover:bg-white hover:text-black transition-all duration-200 active:scale-95;
+    }
+}
+
+/* --- Animated vibrant mesh background --- */
+.mesh-bg {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    overflow: hidden;
+    background: #000;
+}
+
+.mesh-blob {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(90px);
+    opacity: 0.55;
+}
+
+.blob-1 {
+    width: 45vw;
+    height: 45vw;
+    top: -10%;
+    left: -5%;
+    background: #7c3aed;
+    animation: meshMove 20s ease-in-out infinite;
+}
+
+.blob-2 {
+    width: 40vw;
+    height: 40vw;
+    bottom: -15%;
+    right: -8%;
+    background: #d946ef;
+    animation: meshMove 24s ease-in-out infinite reverse;
+}
+
+.blob-3 {
+    width: 35vw;
+    height: 35vw;
+    top: 30%;
+    left: 40%;
+    background: #22d3ee;
+    animation: meshMove 28s ease-in-out infinite;
+}
+
+@keyframes meshMove {
+    0%,
+    100% {
+        transform: translate(0, 0) scale(1);
+    }
+
+    33% {
+        transform: translate(6%, -4%) scale(1.15);
+    }
+
+    66% {
+        transform: translate(-5%, 5%) scale(1.05);
+    }
+}
+
+/* Lyrics scroll styling */
+.lyric-line {
+    @apply text-zinc-600 transition-all duration-500 text-2xl font-medium leading-relaxed;
+}
+
+.lyric-line.active {
+    @apply text-white scale-105 drop-shadow-[0_0_20px_rgba(217,70,239,0.6)];
+}
+
+::-webkit-scrollbar {
+    width: 6px;
+}
+
+::-webkit-scrollbar-thumb {
+    @apply bg-zinc-800 rounded-full;
+}
