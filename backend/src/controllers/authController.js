@@ -7,15 +7,58 @@ dotenv.config();
 
 const JWT_SECRET = process.env.JWT_SECRET || 'tremble_secret_key_123';
 
-export const login = async (req, res) => {
+export const register = async (req, res) => {
   try {
-    const { username, password } = req.body;
+    const { username, email, password } = req.body;
 
-    if (!username || !password) {
-      return res.status(400).json({ message: 'Username and password are required' });
+    if (!username || !email || !password) {
+      return res.status(400).json({ message: 'All fields are required' });
     }
 
-    const [users] = await pool.execute('SELECT * FROM users WHERE username = ?', [username]);
+    // Check if user already exists
+    const [existingUsers] = await pool.execute(
+      'SELECT * FROM users WHERE username = ? OR email = ?',
+      [username, email]
+    );
+
+    if (existingUsers.length > 0) {
+      return res.status(409).json({ message: 'Username or email already exists' });
+    }
+
+    // Hash password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    // Insert user
+    const [result] = await pool.execute(
+      'INSERT INTO users (username, email, password_hash, role) VALUES (?, ?, ?, ?)',
+      [username, email, hashedPassword, 'user']
+    );
+
+    const newUserId = result.insertId;
+
+    // Generate token
+    const token = jwt.sign({ id: newUserId, role: 'user' }, JWT_SECRET, { expiresIn: '7d' });
+
+    res.status(201).json({
+      token,
+      user: { id: newUserId, username, email, role: 'user' }
+    });
+  } catch (error) {
+    console.error('Registration error:', error);
+    res.status(500).json({ message: 'Server error during registration' });
+  }
+};
+
+export const login = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ message: 'Email and password are required' });
+    }
+
+    const [users] = await pool.execute('SELECT * FROM users WHERE email = ?', [email]);
     const user = users[0];
 
     if (!user) {
@@ -45,13 +88,13 @@ export const login = async (req, res) => {
 
 export const artistLogin = async (req, res) => {
   try {
-    const { username, password } = req.body;
+    const { email, password } = req.body;
 
-    if (!username || !password) {
-      return res.status(400).json({ message: 'Username and password are required' });
+    if (!email || !password) {
+      return res.status(400).json({ message: 'Email and password are required' });
     }
 
-    const [users] = await pool.execute('SELECT * FROM users WHERE username = ?', [username]);
+    const [users] = await pool.execute('SELECT * FROM users WHERE email = ?', [email]);
     const user = users[0];
 
     if (!user) {

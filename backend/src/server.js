@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import authRoutes from './routes/authRoutes.js';
 import trackRoutes from './routes/trackRoutes.js';
+import ytMusicRoutes from './routes/ytMusicRoutes.js';
 
 dotenv.config();
 
@@ -15,6 +16,7 @@ app.use(express.json());
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/tracks', trackRoutes);
+app.use('/api/ytmusic', ytMusicRoutes);
 
 app.get('/', (req, res) => {
   res.send('TREMBLE Backend is running!');

@@ -1,4 +1,23 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap");
+@font-face {
+  font-family: 'SF Pro Display';
+  src: url('/fonts/SFPRODISPLAYREGULAR.OTF') format('opentype');
+  font-weight: 400;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'SF Pro Display';
+  src: url('/fonts/SFPRODISPLAYMEDIUM.OTF') format('opentype');
+  font-weight: 500;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'SF Pro Display';
+  src: url('/fonts/SFPRODISPLAYBOLD.OTF') format('opentype');
+  font-weight: 700;
+  font-style: normal;
+}
 
 @tailwind base;
 @tailwind components;
@@ -9,22 +28,20 @@
 }
 
 body {
-    @apply bg-tremble-bg text-white font-sans antialiased overflow-hidden;
+    @apply bg-tremble-bg text-white antialiased;
+    font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
-/* --- Monochrome High-Contrast Surfaces --- */
-@layer components {
-    .glass {
-        @apply bg-black border border-zinc-800 rounded-lg;
-    }
+.glass-player {
+    @apply bg-black/40 backdrop-blur-2xl border-t border-white/10 rounded-t-2xl shadow-2xl;
+}
 
-    .glass-strong {
-        @apply bg-black border border-zinc-800 rounded-lg;
-    }
+.glass-control-btn {
+    @apply p-2 rounded-full text-zinc-400 hover:text-white hover:bg-white/10 transition-all duration-200 active:scale-90;
+}
 
-    .glass-btn {
-        @apply grid place-items-center rounded-lg bg-black text-white border border-zinc-800 hover:bg-white hover:text-black transition-all duration-200 active:scale-95;
-    }
+.glass-input {
+    @apply bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white placeholder:text-zinc-500 focus:ring-2 ring-white/20 outline-none transition-all;
 }
 
 /* --- Animated vibrant mesh background --- */
@@ -39,35 +56,37 @@ body {
 .mesh-blob {
     position: absolute;
     border-radius: 50%;
-    filter: blur(90px);
-    opacity: 0.55;
+    filter: blur(120px);
+    opacity: 0.3;
+    translate: calc(var(--mouse-x, 0px) * 0.05) calc(var(--mouse-y, 0px) * 0.05);
+    transition: translate 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 .blob-1 {
-    width: 45vw;
-    height: 45vw;
+    width: 50vw;
+    height: 50vw;
     top: -10%;
-    left: -5%;
-    background: #7c3aed;
-    animation: meshMove 20s ease-in-out infinite;
+    left: -10%;
+    background: #4f46e5;
+    animation: meshMove 30s ease-in-out infinite;
 }
 
 .blob-2 {
-    width: 40vw;
-    height: 40vw;
-    bottom: -15%;
-    right: -8%;
-    background: #d946ef;
-    animation: meshMove 24s ease-in-out infinite reverse;
+    width: 45vw;
+    height: 45vw;
+    bottom: -10%;
+    right: -10%;
+    background: #9333ea;
+    animation: meshMove 35s ease-in-out infinite reverse;
 }
 
 .blob-3 {
-    width: 35vw;
-    height: 35vw;
-    top: 30%;
-    left: 40%;
-    background: #22d3ee;
-    animation: meshMove 28s ease-in-out infinite;
+    width: 40vw;
+    height: 40vw;
+    top: 20%;
+    left: 30%;
+    background: #0ea5e9;
+    animation: meshMove 40s ease-in-out infinite;
 }
 
 @keyframes meshMove {
@@ -100,4 +119,25 @@ body {
 
 ::-webkit-scrollbar-thumb {
     @apply bg-zinc-800 rounded-full;
+}
+
+@keyframes kawarp {
+    0% { transform: scale(1) translate(0, 0); }
+    50% { transform: scale(1.15) translate(4%, 3%); }
+    100% { transform: scale(1.05) translate(-4%, -3%); }
+}
+
+@keyframes bounceUp {
+    0% {
+        opacity: 0;
+        transform: translateY(60px) scale(0.95);
+    }
+    60% {
+        opacity: 1;
+        transform: translateY(-10px) scale(1.02);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
 }
