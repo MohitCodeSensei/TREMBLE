@@ -3,7 +3,7 @@ import React from 'react';
 import { usePlayer } from '../context/PlayerContext';
 import {
   Play, Pause, SkipForward, SkipBack,
-  Repeat, Shuffle, Heart, Mic2, Volume2, Maximize2
+  Repeat, Shuffle, Heart, Mic2, Volume2, VolumeX, ListMusic
 } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 
@@ -12,95 +12,137 @@ const BottomPlayer = () => {
     currentTrack,
     isPlaying,
     togglePlay,
-    toggleNowPlaying
+    toggleNowPlaying,
+    currentTime,
+    duration,
+    seekTo,
+    volume,
+    handleVolumeChange,
+    isMuted,
+    toggleMute,
+    playNext,
+    playPrev,
+    isShuffle,
+    toggleShuffle,
+    repeatMode,
+    toggleRepeat,
+    toggleLike,
+    likedSongs,
+    isSidebarOpen,
+    toggleSidebar
   } = usePlayer();
   const pathname = usePathname();
 
   if (pathname === '/login') return null;
 
-  // Placeholder if no track is selected
   const displayTrack = currentTrack || {
     title: 'Select a Track',
     artist_name: 'to start listening',
-    cover_url: 'https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=100&h=100&fit=crop', // nice abstract placeholder
+    cover_url: 'https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=100&h=100&fit=crop',
+    id: null
   };
 
+  const isLiked = displayTrack.id && likedSongs.some(t => (t.id || t.youtube_id) === (displayTrack.id || displayTrack.youtube_id));
+
+  const formatTime = (time) => {
+    if (!time || isNaN(time)) return "0:00";
+    const min = Math.floor(time / 60);
+    const sec = Math.floor(time % 60);
+    return `${min}:${sec < 10 ? '0' : ''}${sec}`;
+  };
+
+  const handleProgressChange = (e) => {
+    seekTo(parseFloat(e.target.value));
+  };
+
+  const repeatColor = repeatMode > 0 ? "text-indigo-400" : "text-zinc-400";
+  const shuffleColor = isShuffle ? "text-indigo-400" : "text-zinc-400";
+
   return (
-    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[95%] max-w-4xl h-20 bg-zinc-900/50 backdrop-blur-3xl border border-white/10 rounded-[2.5rem] flex items-center px-4 shadow-[0_10px_40px_rgba(0,0,0,0.5)] z-40 transition-all duration-300 hover:bg-zinc-900/70">
+    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[95%] max-w-4xl h-24 bg-zinc-900/80 backdrop-blur-3xl border border-white/10 rounded-[2.5rem] flex items-center px-6 shadow-[0_10px_40px_rgba(0,0,0,0.5)] z-40 transition-all duration-300">
       
       {/* Left Side: Mini Album Cover and Info */}
       <div
-        onClick={currentTrack ? toggleNowPlaying : undefined}
-        className={`flex items-center gap-3 w-1/3 ${currentTrack ? 'cursor-pointer group' : ''}`}
+        className="flex items-center gap-4 w-1/3"
       >
-        <div className="w-14 h-14 rounded-full overflow-hidden relative shadow-lg bg-zinc-800 flex-shrink-0 border border-white/5">
+        <div onClick={currentTrack ? toggleNowPlaying : undefined} className={`w-14 h-14 rounded-full overflow-hidden relative shadow-lg bg-zinc-800 flex-shrink-0 border border-white/5 ${currentTrack ? 'cursor-pointer group' : ''}`}>
           <img src={displayTrack.cover_url} alt={displayTrack.title} className={`w-full h-full object-cover transition-transform duration-300 opacity-90 ${isPlaying ? 'animate-[spin_10s_linear_infinite]' : ''}`} />
-          {/* Inner circle hole to look like a record */}
           <div className="absolute inset-0 m-auto w-4 h-4 bg-zinc-950 rounded-full border border-zinc-800/50 shadow-inner"></div>
         </div>
-        <div className="flex flex-col justify-center overflow-hidden">
-          <div className="text-white font-bold text-sm truncate">{displayTrack.title}</div>
-          <div className="text-zinc-400 text-xs truncate font-medium">{displayTrack.artist_name}</div>
+        <div className="flex flex-col justify-center overflow-hidden cursor-pointer" onClick={currentTrack ? toggleNowPlaying : undefined}>
+          <div className="text-white font-bold text-sm truncate hover:underline">{displayTrack.title}</div>
+          <div className="text-zinc-400 text-xs truncate font-medium hover:underline">{displayTrack.artist_name}</div>
         </div>
         {currentTrack && (
-          <button className="text-zinc-500 hover:text-red-500 transition-colors ml-2 hidden sm:block">
-            <Heart size={18} />
+          <button onClick={(e) => { e.stopPropagation(); toggleLike(currentTrack); }} className="text-zinc-500 hover:text-red-500 transition-colors ml-2 hidden sm:block">
+            <Heart size={20} fill={isLiked ? "currentColor" : "none"} className={isLiked ? "text-red-500" : ""} />
           </button>
         )}
       </div>
 
       {/* Center Side: Main Playback Controls */}
-      <div className="flex-1 flex flex-col justify-center items-center gap-1">
-        <div className="flex items-center gap-5 text-zinc-400">
-          <button className="hover:text-white transition-colors"><Shuffle size={16} /></button>
-          <button className="hover:text-white transition-colors"><SkipBack size={20} fill="currentColor" /></button>
+      <div className="flex-1 flex flex-col justify-center items-center gap-2">
+        <div className="flex items-center gap-6">
+          <button onClick={toggleShuffle} className={`hover:text-white transition-colors ${shuffleColor}`}><Shuffle size={18} /></button>
+          <button onClick={playPrev} className="text-zinc-400 hover:text-white transition-colors"><SkipBack size={22} fill="currentColor" /></button>
           <button
             onClick={currentTrack ? togglePlay : undefined}
             className={`w-12 h-12 rounded-full bg-white text-black flex items-center justify-center transition-transform hover:scale-105 active:scale-95 shadow-xl ${!currentTrack ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
-            {isPlaying ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" className="ml-1" />}
+            {isPlaying ? <Pause size={22} fill="currentColor" /> : <Play size={22} fill="currentColor" className="ml-1" />}
           </button>
-          <button className="hover:text-white transition-colors"><SkipForward size={20} fill="currentColor" /></button>
-          <button className="hover:text-white transition-colors"><Repeat size={16} /></button>
+          <button onClick={playNext} className="text-zinc-400 hover:text-white transition-colors"><SkipForward size={22} fill="currentColor" /></button>
+          <button onClick={toggleRepeat} className={`hover:text-white transition-colors relative ${repeatColor}`}>
+            <Repeat size={18} />
+            {repeatMode === 2 && <span className="absolute -top-1 -right-1 text-[8px] font-black bg-zinc-900 rounded-full w-3 h-3 flex items-center justify-center">1</span>}
+          </button>
         </div>
         
-        {/* Progress Bar centered precisely below controls */}
-        <div className="w-full max-w-sm flex items-center gap-2 text-[10px] text-zinc-500 font-bold tracking-wider">
-          <span>0:00</span>
-          <div className="flex-1 h-1 bg-zinc-800 rounded-full relative overflow-hidden group cursor-pointer">
-            <div className="absolute top-0 left-0 h-full w-1/3 bg-white group-hover:bg-indigo-400 transition-colors rounded-full" />
-          </div>
-          <span>{currentTrack ? '3:45' : '0:00'}</span>
+        {/* Progress Bar */}
+        <div className="w-full max-w-md flex items-center gap-3 text-xs text-zinc-500 font-medium font-mono">
+          <span>{formatTime(currentTime)}</span>
+          <input 
+            type="range" 
+            min="0" 
+            max={duration || 100} 
+            value={currentTime} 
+            onChange={handleProgressChange}
+            className="flex-1 h-1 bg-zinc-800 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full"
+            style={{
+              background: `linear-gradient(to right, white ${(currentTime / (duration || 1)) * 100}%, #27272a ${(currentTime / (duration || 1)) * 100}%)`
+            }}
+          />
+          <span>{formatTime(duration)}</span>
         </div>
       </div>
 
-      {/* Right Side: Volume & Extra Actions */}
-      <div className="w-1/3 flex items-center justify-end gap-4 text-zinc-400 pr-2">
-        <button className="hover:text-white transition-colors hidden sm:block" title="Lyrics">
+      {/* Right Side: Volume & Extra Controls */}
+      <div className="w-1/3 flex items-center justify-end gap-5 text-zinc-400">
+        <button onClick={currentTrack ? toggleNowPlaying : undefined} className={`hover:text-white transition-colors ${currentTrack ? '' : 'opacity-50 cursor-not-allowed'}`}>
           <Mic2 size={18} />
         </button>
+        <button onClick={toggleSidebar} className={`hover:text-white transition-colors ${isSidebarOpen ? 'text-indigo-400' : ''}`}>
+          <ListMusic size={18} />
+        </button>
         
-        {/* Vertical Volume Hover Popover */}
-        <div className="relative flex items-center justify-center group">
-          <button className="hover:text-white transition-colors p-2">
-            <Volume2 size={18} />
+        {/* Volume Slider */}
+        <div className="flex items-center gap-2 group relative">
+          <button onClick={toggleMute} className="hover:text-white transition-colors">
+             {isMuted || volume === 0 ? <VolumeX size={18} /> : <Volume2 size={18} />}
           </button>
-          {/* Popover container */}
-          <div className="absolute bottom-full right-1/2 translate-x-1/2 mb-2 w-8 h-24 bg-zinc-800/90 backdrop-blur-md rounded-full shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 flex flex-col items-center py-3 border border-white/10">
-            <div className="w-1.5 flex-1 bg-zinc-900 rounded-full relative overflow-hidden cursor-pointer">
-              <div className="absolute bottom-0 left-0 w-full h-2/3 bg-indigo-500 rounded-full transition-colors" />
-            </div>
-          </div>
+          <input 
+            type="range" 
+            min="0" 
+            max="100" 
+            value={isMuted ? 0 : volume} 
+            onChange={(e) => handleVolumeChange(Number(e.target.value))}
+            className="w-0 group-hover:w-20 h-1 bg-zinc-800 rounded-full appearance-none cursor-pointer transition-all duration-300 opacity-0 group-hover:opacity-100 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full"
+            style={{
+              background: `linear-gradient(to right, white ${isMuted ? 0 : volume}%, #27272a ${isMuted ? 0 : volume}%)`
+            }}
+          />
         </div>
-
-        {/* Expand Fullscreen */}
-        {currentTrack && (
-          <button onClick={toggleNowPlaying} className="hover:text-white transition-colors p-2" title="Fullscreen">
-            <Maximize2 size={18} />
-          </button>
-        )}
       </div>
-
     </div>
   );
 };

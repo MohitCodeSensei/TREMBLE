@@ -3,9 +3,9 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "start": "node src/server.js",
-    "dev": "nodemon src/server.js",
-    "init:db": "node src/scripts/initDb.js"
+    "start": "uvicorn main:app --host 0.0.0.0 --port 8000",
+    "dev": "uvicorn main:app --host 0.0.0.0 --port 8000 --reload",
+    "init:db": "python init_db.py"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

@@ -1,6 +1,7 @@
 "use client";
 import React, { createContext, useContext, useState, useRef, useEffect } from 'react';
 import YouTube from 'react-youtube';
+import { getLyrics } from '../utils/api';
 
 const PlayerContext = createContext();
 
@@ -75,6 +76,84 @@ export const PlayerProvider = ({ children }) => {
     setCurrentTime(seconds);
   };
 
+  // User & Auth State
+  const [user, setUser] = useState(null);
+
+  // Likes State
+  const [likedSongs, setLikedSongs] = useState([]);
+
+  useEffect(() => {
+    // On mount, check if user is in localStorage
+    try {
+      const storedUser = localStorage.getItem('user');
+      if (storedUser) {
+        const parsed = JSON.parse(storedUser);
+        setUser(parsed);
+        fetchLikedSongs(parsed.id);
+      }
+    } catch (e) {}
+  }, []);
+
+  const fetchLikedSongs = async (userId) => {
+    try {
+      const res = await fetch(`http://localhost:8000/api/liked-songs/${userId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setLikedSongs(data);
+      }
+    } catch (e) {
+      console.error("Failed to fetch liked songs", e);
+    }
+  };
+
+  const toggleLike = async (track) => {
+    if (!track) return;
+    
+    const trackId = track.id || track.youtube_id;
+    const isLiked = likedSongs.some((t) => (t.id || t.youtube_id) === trackId);
+    
+    // Optimistic UI update
+    setLikedSongs((prev) => {
+      if (isLiked) {
+        return prev.filter((t) => (t.id || t.youtube_id) !== trackId);
+      }
+      return [...prev, track];
+    });
+
+    // Sync with backend if logged in
+    if (user) {
+      try {
+        if (isLiked) {
+           await fetch(`http://localhost:8000/api/liked-songs/${user.id}/${trackId}`, {
+             method: 'DELETE'
+           });
+        } else {
+           await fetch(`http://localhost:8000/api/liked-songs`, {
+             method: 'POST',
+             headers: { 'Content-Type': 'application/json' },
+             body: JSON.stringify({ user_id: user.id, track_data: track })
+           });
+        }
+      } catch (e) {
+         console.error("Failed to sync liked song with backend", e);
+      }
+    }
+  };
+
+  const logout = () => {
+    setUser(null);
+    setLikedSongs([]);
+    localStorage.removeItem('user');
+    localStorage.removeItem('token');
+  };
+
+  // Initialization
+  useEffect(() => {
+    if (!hasBooted) {
+      setHasBooted(true);
+    }
+  }, [hasBooted]);
+
   const handleVolumeChange = (newVol) => {
     setVolume(newVol);
     playerRef.current?.setVolume(newVol);
@@ -107,9 +186,20 @@ export const PlayerProvider = ({ children }) => {
       artist_name: track.artist?.name || track.artist_name || 'Unknown',
       cover_url: track.thumbnails?.[track.thumbnails.length - 1]?.url || track.thumbnails?.[0]?.url || track.cover_url || '',
       youtube_id: track.videoId || track.youtube_id,
+      id: track.id || track.videoId || track.youtube_id
     });
     setLyrics(null);
   };
+
+  useEffect(() => {
+    if (currentTrack?.youtube_id) {
+      getLyrics(currentTrack.youtube_id)
+        .then(data => setLyrics(data.lyrics || "[00:00.00] Lyrics not available"))
+        .catch(() => setLyrics("[00:00.00] Lyrics not available"));
+    } else {
+      setLyrics("[00:00.00] Lyrics not available");
+    }
+  }, [currentTrack?.youtube_id]);
 
   // YouTube Event Handlers
   const onReady = (event) => {
@@ -150,6 +240,7 @@ export const PlayerProvider = ({ children }) => {
       disablekb: 1,
       fs: 0,
       playsinline: 1,
+      vq: 'hd1080'
     },
   };
 
@@ -185,7 +276,12 @@ export const PlayerProvider = ({ children }) => {
       setHasBooted,
       lyrics,
       setLyrics,
-      loadTrackIntoContext
+      loadTrackIntoContext,
+      likedSongs,
+      toggleLike,
+      user,
+      setUser,
+      logout
     }}>
       {children}
       
