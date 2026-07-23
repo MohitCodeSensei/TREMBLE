@@ -114,11 +114,20 @@ const NowPlaying = () => {
       
       {/* Dynamic Fluid Background using KAWARP */}
       <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden bg-black">
+        {/* Instant Placeholder while Kawarp loads */}
+        <div 
+          className="absolute inset-0 opacity-50" 
+          style={{ backgroundImage: `url(${currentTrack?.cover_url})`, backgroundSize: 'cover', backgroundPosition: 'center', filter: 'blur(80px) saturate(200%)' }}
+        />
+        
+        {/* WebGL Kawarp Overlay */}
         {currentTrack?.cover_url && (
            <Kawarp
              src={currentTrack.cover_url}
-             warpIntensity={0.8}
-             animationSpeed={1.2}
+             warpIntensity={2.0}
+             animationSpeed={1.5}
+             blurPasses={5}
+             saturation={1.5}
              style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 1.0 }}
            />
         )}
@@ -168,8 +177,8 @@ const NowPlaying = () => {
         {/* RIGHT COLUMN - PLAYER (SWAPPED) */}
         <div className={`w-5/12 h-full flex flex-col justify-center items-center pl-8 transition-all duration-1000 ease-out transform ${isRendered ? 'translate-y-0 scale-100' : 'translate-y-10 scale-95'}`}>
           
-          <div className="relative w-full max-w-[420px] aspect-square rounded-2xl overflow-hidden shadow-[0_40px_80px_rgba(0,0,0,0.8)] mb-8 ring-1 ring-white/10">
-            <img src={currentTrack.cover_url} alt={currentTrack.title} className="absolute inset-0 w-full h-full object-cover" />
+          <div className="relative w-full max-w-[420px] aspect-square rounded-2xl overflow-hidden shadow-[0_40px_80px_rgba(0,0,0,0.8)] mb-8 ring-1 ring-white/10 bg-zinc-900">
+            <img src={currentTrack.cover_url} alt={currentTrack.title} crossOrigin="anonymous" className="absolute inset-0 w-full h-full object-cover" />
           </div>
           
           <div className="w-full max-w-[420px] flex flex-col">
