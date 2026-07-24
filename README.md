@@ -1,6 +1,6 @@
 <div align="center">
 
-  <img src="https://raw.githubusercontent.com/pkief/vscode-material-icon-theme/main/icons/wave.svg](https://github.com/MohitCodeSensei/TREMBLE/blob/main/frontend/app/icon.png" width="64" alt="Tremble Logo" />
+  <img src="https://github.com/MohitCodeSensei/TREMBLE/blob/main/frontend/app/icon.png" width="64" alt="Tremble Logo" />
 
   <h1>Tremble</h1>
 
