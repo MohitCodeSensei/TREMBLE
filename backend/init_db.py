@@ -29,6 +29,32 @@ TABLES['liked_songs'] = (
     ") ENGINE=InnoDB"
 )
 
+TABLES['listening_history'] = (
+    "CREATE TABLE IF NOT EXISTS `listening_history` ("
+    "  `id` int(11) NOT NULL AUTO_INCREMENT,"
+    "  `user_id` int(11) NOT NULL,"
+    "  `track_id` varchar(255) NOT NULL,"
+    "  `track_data` json NOT NULL,"
+    "  `listened_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,"
+    "  PRIMARY KEY (`id`),"
+    "  CONSTRAINT `history_ibfk_1` FOREIGN KEY (`user_id`) "
+    "     REFERENCES `users` (`id`) ON DELETE CASCADE"
+    ") ENGINE=InnoDB"
+)
+
+TABLES['user_playlists'] = (
+    "CREATE TABLE IF NOT EXISTS `user_playlists` ("
+    "  `id` int(11) NOT NULL AUTO_INCREMENT,"
+    "  `user_id` int(11) NOT NULL,"
+    "  `title` varchar(255) NOT NULL,"
+    "  `tracks` json NOT NULL,"
+    "  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,"
+    "  PRIMARY KEY (`id`),"
+    "  CONSTRAINT `playlists_ibfk_1` FOREIGN KEY (`user_id`) "
+    "     REFERENCES `users` (`id`) ON DELETE CASCADE"
+    ") ENGINE=InnoDB"
+)
+
 def create_database(cursor):
     try:
         cursor.execute(f"CREATE DATABASE IF NOT EXISTS {DB_NAME} DEFAULT CHARACTER SET 'utf8'")

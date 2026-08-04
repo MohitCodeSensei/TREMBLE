@@ -1,7 +1,7 @@
 "use client";
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import InteractiveBackground from '../../components/ui/InteractiveBackground';
+import InteractiveBackground from '../../../components/ui/InteractiveBackground';
 
 export default function ArtistLoginPage() {
   const [username, setUsername] = useState('');
@@ -45,7 +45,7 @@ export default function ArtistLoginPage() {
             TREMBLE
           </h1>
           <p className="text-xs text-white/40 tracking-[0.4em] uppercase font-medium">
-            Artist Portal
+            Trembler Portal
           </p>
         </div>
 
@@ -59,7 +59,7 @@ export default function ArtistLoginPage() {
           <div className="bg-black border border-zinc-800 p-8 rounded-lg space-y-6 shadow-2xl ring-1 ring-zinc-900">
             <div className="space-y-2 group">
               <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest ml-1 transition-colors group-focus-within:text-white/80">
-                Artist Username
+                Trembler Username
               </label>
               <input
                 type="text"
@@ -67,7 +67,7 @@ export default function ArtistLoginPage() {
                 onChange={(e) => setUsername(e.target.value)}
                 required
                 className="w-full px-5 py-4 bg-zinc-900 border border-zinc-800 rounded-lg focus:outline-none focus:ring-2 ring-zinc-700 transition-all duration-300 text-sm text-white placeholder:text-zinc-600"
-                placeholder="Enter your artist username"
+                placeholder="Enter your trembler username"
               />
             </div>
 
@@ -97,7 +97,7 @@ export default function ArtistLoginPage() {
 
         <div className="mt-12 text-center">
           <p className="text-xs text-white/30 tracking-wide">
-            NOT AN ARTIST? <br className="hidden sm:block" />
+            NOT A TREMBLER? <br className="hidden sm:block" />
             <a href="/login" className="text-white/60 hover:text-white transition-all duration-300 underline underline-offset-4 decoration-white/20 hover:decoration-white/60 font-medium">
               RETURN TO USER LOGIN
             </a>

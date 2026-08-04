@@ -151,3 +151,8 @@ body {
         transform: translateY(0) scale(1);
     }
 }
+#visualizer-canvas canvas {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+}

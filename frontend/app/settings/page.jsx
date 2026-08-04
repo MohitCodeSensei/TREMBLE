@@ -1,16 +1,28 @@
 "use client";
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { usePlayer } from '../../context/PlayerContext';
+import { API_URL } from '../../utils/api';
 import { Camera, User, Mail, Save, Loader2, CheckCircle2 } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
 
-export default function SettingsPage() {
-  const { user, setUser } = usePlayer();
+function SettingsContent() {
+  const { user, setUser, preferences, updatePreference } = usePlayer();
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  const [activeTab, setActiveTab] = useState('profile');
+  
   const [formData, setFormData] = useState({ username: '', email: '' });
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [error, setError] = useState('');
   const fileInputRef = useRef(null);
+
+  useEffect(() => {
+    if (tabParam) {
+      setActiveTab(tabParam);
+    }
+  }, [tabParam]);
 
   useEffect(() => {
     if (user) {
@@ -27,7 +39,7 @@ export default function SettingsPage() {
     setSuccessMessage('');
     
     try {
-      const res = await fetch('http://localhost:8000/api/auth/profile', {
+      const res = await fetch(`${API_URL}/api/auth/profile`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -65,7 +77,7 @@ export default function SettingsPage() {
     uploadData.append('file', file);
     
     try {
-      const res = await fetch('http://localhost:8000/api/auth/profile/picture', {
+      const res = await fetch(`${API_URL}/api/auth/profile/picture`, {
         method: 'POST',
         body: uploadData
       });
@@ -108,11 +120,17 @@ export default function SettingsPage() {
           
           {/* Sidebar Menu */}
           <div className="flex flex-col gap-2">
-            <button className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/10 text-white font-medium transition-colors">
+            <button 
+              onClick={() => setActiveTab('profile')}
+              className={`flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-colors ${activeTab === 'profile' ? 'bg-white/10 text-white' : 'text-zinc-400 hover:text-white hover:bg-white/5'}`}
+            >
               <User size={18} />
               Profile
             </button>
-            <button className="flex items-center gap-3 px-4 py-3 rounded-xl text-zinc-400 hover:text-white hover:bg-white/5 font-medium transition-colors">
+            <button 
+              onClick={() => setActiveTab('preferences')}
+              className={`flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-colors ${activeTab === 'preferences' ? 'bg-white/10 text-white' : 'text-zinc-400 hover:text-white hover:bg-white/5'}`}
+            >
               <SettingsIcon size={18} />
               Preferences
             </button>
@@ -121,115 +139,180 @@ export default function SettingsPage() {
           {/* Main Content Area */}
           <div className="flex flex-col gap-8">
             
-            {/* Profile Card */}
-            <div className="bg-zinc-900/50 backdrop-blur-md border border-white/10 rounded-3xl p-8 shadow-2xl relative overflow-hidden">
-              <h2 className="text-2xl font-bold text-white mb-6">Public Profile</h2>
-              
-              {/* Picture Upload Section */}
-              <div className="flex items-center gap-8 mb-8">
-                <div 
-                  className="relative group cursor-pointer"
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  <div className="w-28 h-28 rounded-full overflow-hidden bg-zinc-800 flex items-center justify-center border-4 border-zinc-900 shadow-xl group-hover:border-indigo-500/50 transition-all duration-300">
-                    {isUploading ? (
-                      <Loader2 className="animate-spin text-indigo-400" size={32} />
-                    ) : user.profile_picture_url ? (
-                      <img src={user.profile_picture_url} alt="Profile" className="w-full h-full object-cover" />
-                    ) : (
-                      <span className="text-4xl font-bold text-white">{user.username ? user.username.charAt(0).toUpperCase() : 'U'}</span>
-                    )}
+            {/* Profile Tab */}
+            {activeTab === 'profile' && (
+              <div className="bg-zinc-900/50 backdrop-blur-md border border-white/10 rounded-3xl p-8 shadow-2xl relative overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <h2 className="text-2xl font-bold text-white mb-6">Public Profile</h2>
+                
+                {/* Picture Upload Section */}
+                <div className="flex items-center gap-8 mb-8">
+                  <div 
+                    className="relative group cursor-pointer"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <div className="w-28 h-28 rounded-full overflow-hidden bg-zinc-800 flex items-center justify-center border-4 border-zinc-900 shadow-xl group-hover:border-indigo-500/50 transition-all duration-300">
+                      {isUploading ? (
+                        <Loader2 className="animate-spin text-indigo-400" size={32} />
+                      ) : user.profile_picture_url ? (
+                        <img loading="lazy" src={user.profile_picture_url} alt="Profile" className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="text-4xl font-bold text-white">{user.username ? user.username.charAt(0).toUpperCase() : 'U'}</span>
+                      )}
+                    </div>
+                    
+                    {/* Hover Overlay */}
+                    <div className="absolute inset-0 bg-black/60 rounded-full opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity duration-300">
+                      <Camera className="text-white" size={28} />
+                    </div>
+                    
+                    {/* Hidden File Input */}
+                    <input 
+                      type="file" 
+                      ref={fileInputRef} 
+                      className="hidden" 
+                      accept="image/*"
+                      onChange={handleFileUpload}
+                    />
                   </div>
                   
-                  {/* Hover Overlay */}
-                  <div className="absolute inset-0 bg-black/60 rounded-full opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity duration-300">
-                    <Camera className="text-white" size={28} />
+                  <div className="flex flex-col">
+                    <h3 className="text-white font-bold text-lg mb-1">Profile Picture</h3>
+                    <p className="text-zinc-400 text-sm max-w-xs">Upload a new avatar. Larger images will be automatically resized. Maximum size 5MB.</p>
                   </div>
-                  
-                  {/* Hidden File Input */}
-                  <input 
-                    type="file" 
-                    ref={fileInputRef} 
-                    className="hidden" 
-                    accept="image/*"
-                    onChange={handleFileUpload}
-                  />
                 </div>
                 
-                <div className="flex flex-col">
-                  <h3 className="text-white font-bold text-lg mb-1">Profile Picture</h3>
-                  <p className="text-zinc-400 text-sm max-w-xs">Upload a new avatar. Larger images will be automatically resized. Maximum size 5MB.</p>
+                <div className="h-px w-full bg-white/10 mb-8" />
+                
+                {/* Form Section */}
+                <form onSubmit={handleSaveProfile} className="flex flex-col gap-6">
+                  
+                  <div className="flex flex-col gap-2">
+                    <label className="text-sm font-medium text-zinc-300 pl-1">Username</label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                        <User className="text-zinc-500" size={18} />
+                      </div>
+                      <input 
+                        type="text"
+                        value={formData.username}
+                        onChange={(e) => setFormData({...formData, username: e.target.value})}
+                        className="w-full pl-11 pr-4 py-3.5 bg-black/40 border border-white/10 rounded-xl text-white placeholder:text-zinc-600 focus:bg-black/60 focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all"
+                        placeholder="Your username"
+                        required
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="flex flex-col gap-2">
+                    <label className="text-sm font-medium text-zinc-300 pl-1">Email Address</label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                        <Mail className="text-zinc-500" size={18} />
+                      </div>
+                      <input 
+                        type="email"
+                        value={formData.email}
+                        onChange={(e) => setFormData({...formData, email: e.target.value})}
+                        className="w-full pl-11 pr-4 py-3.5 bg-black/40 border border-white/10 rounded-xl text-white placeholder:text-zinc-600 focus:bg-black/60 focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all"
+                        placeholder="Your email address"
+                        required
+                      />
+                    </div>
+                  </div>
+                  
+                  {error && (
+                    <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm font-medium">
+                      {error}
+                    </div>
+                  )}
+                  
+                  {successMessage && (
+                    <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm font-medium flex items-center gap-2">
+                      <CheckCircle2 size={18} /> {successMessage}
+                    </div>
+                  )}
+                  
+                  <div className="flex justify-end pt-4 mt-2">
+                    <button 
+                      type="submit"
+                      disabled={isSaving}
+                      className="flex items-center gap-2 px-8 py-3.5 rounded-xl bg-white text-black font-bold hover:bg-zinc-200 transition-all active:scale-95 disabled:opacity-70 disabled:active:scale-100"
+                    >
+                      {isSaving ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
+                      {isSaving ? 'Saving...' : 'Save Changes'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+
+            {/* Preferences Tab */}
+            {activeTab === 'preferences' && (
+              <div className="bg-zinc-900/50 backdrop-blur-md border border-white/10 rounded-3xl p-8 shadow-2xl relative overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <h2 className="text-2xl font-bold text-white mb-6">Preferences</h2>
+                
+                <div className="flex flex-col gap-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                       <h3 className="text-white font-medium text-lg">High Quality Audio</h3>
+                       <p className="text-zinc-400 text-sm">Stream audio in maximum available quality.</p>
+                    </div>
+                    <Switch checked={preferences?.highQualityAudio} onChange={(val) => updatePreference('highQualityAudio', val)} />
+                  </div>
+                  <div className="h-px w-full bg-white/10" />
+                  
+                  <div className="flex items-center justify-between">
+                    <div>
+                       <h3 className="text-white font-medium text-lg">Data Saver</h3>
+                       <p className="text-zinc-400 text-sm">Reduce data usage by downloading lower quality audio and images.</p>
+                    </div>
+                    <Switch checked={preferences?.dataSaver} onChange={(val) => updatePreference('dataSaver', val)} />
+                  </div>
+                  <div className="h-px w-full bg-white/10" />
+                  
+                  <div className="flex items-center justify-between">
+                    <div>
+                       <h3 className="text-white font-medium text-lg">Animations & Visual Effects</h3>
+                       <p className="text-zinc-400 text-sm">Enable rich UI animations like liquid metal and auroras.</p>
+                    </div>
+                    <Switch checked={preferences?.animations} onChange={(val) => updatePreference('animations', val)} />
+                  </div>
+                  <div className="h-px w-full bg-white/10" />
+                  
+                  <div className="flex items-center justify-between">
+                    <div>
+                       <h3 className="text-white font-medium text-lg">Autoplay</h3>
+                       <p className="text-zinc-400 text-sm">Automatically play similar songs when your queue ends.</p>
+                    </div>
+                    <Switch checked={preferences?.autoplay} onChange={(val) => updatePreference('autoplay', val)} />
+                  </div>
                 </div>
               </div>
-              
-              <div className="h-px w-full bg-white/10 mb-8" />
-              
-              {/* Form Section */}
-              <form onSubmit={handleSaveProfile} className="flex flex-col gap-6">
-                
-                <div className="flex flex-col gap-2">
-                  <label className="text-sm font-medium text-zinc-300 pl-1">Username</label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                      <User className="text-zinc-500" size={18} />
-                    </div>
-                    <input 
-                      type="text"
-                      value={formData.username}
-                      onChange={(e) => setFormData({...formData, username: e.target.value})}
-                      className="w-full pl-11 pr-4 py-3.5 bg-black/40 border border-white/10 rounded-xl text-white placeholder:text-zinc-600 focus:bg-black/60 focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all"
-                      placeholder="Your username"
-                      required
-                    />
-                  </div>
-                </div>
-                
-                <div className="flex flex-col gap-2">
-                  <label className="text-sm font-medium text-zinc-300 pl-1">Email Address</label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                      <Mail className="text-zinc-500" size={18} />
-                    </div>
-                    <input 
-                      type="email"
-                      value={formData.email}
-                      onChange={(e) => setFormData({...formData, email: e.target.value})}
-                      className="w-full pl-11 pr-4 py-3.5 bg-black/40 border border-white/10 rounded-xl text-white placeholder:text-zinc-600 focus:bg-black/60 focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all"
-                      placeholder="Your email address"
-                      required
-                    />
-                  </div>
-                </div>
-                
-                {error && (
-                  <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm font-medium">
-                    {error}
-                  </div>
-                )}
-                
-                {successMessage && (
-                  <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm font-medium flex items-center gap-2">
-                    <CheckCircle2 size={18} /> {successMessage}
-                  </div>
-                )}
-                
-                <div className="flex justify-end pt-4 mt-2">
-                  <button 
-                    type="submit"
-                    disabled={isSaving}
-                    className="flex items-center gap-2 px-8 py-3.5 rounded-xl bg-white text-black font-bold hover:bg-zinc-200 transition-all active:scale-95 disabled:opacity-70 disabled:active:scale-100"
-                  >
-                    {isSaving ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
-                    {isSaving ? 'Saving...' : 'Save Changes'}
-                  </button>
-                </div>
-              </form>
-            </div>
+            )}
             
           </div>
         </div>
       </div>
     </div>
+  );
+}
+
+export default function SettingsPage() {
+  return (
+    <Suspense fallback={<div className="flex-1 min-h-screen bg-black"></div>}>
+      <SettingsContent />
+    </Suspense>
+  );
+}
+
+function Switch({ checked, onChange }) {
+  return (
+    <button 
+      onClick={() => onChange(!checked)}
+      className={`w-12 h-6 rounded-full transition-colors relative flex items-center shrink-0 ${checked ? 'bg-indigo-500' : 'bg-zinc-700'}`}
+    >
+      <div className={`w-5 h-5 bg-white rounded-full absolute transition-all duration-300 shadow-sm ${checked ? 'left-[26px]' : 'left-[2px]'}`} />
+    </button>
   );
 }
 

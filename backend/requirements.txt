@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+pydantic
+ytmusicapi
+syncedlyrics
+mysql-connector-python
+bcrypt
+yt-dlp
+python-multipart

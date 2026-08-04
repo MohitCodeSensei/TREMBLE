@@ -1,8 +1,10 @@
 "use client";
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Eye, EyeOff, Mail, Lock, User, ArrowRight, ArrowUpRight } from 'lucide-react';
 import Link from 'next/link';
+import TextMorph from '../../components/TextMorph';
+import { API_URL } from '../../utils/api';
 
 export default function UserLoginPage() {
   const [isRegister, setIsRegister] = useState(false);
@@ -24,7 +26,7 @@ export default function UserLoginPage() {
     const endpoint = isRegister ? '/api/auth/register' : '/api/auth/login';
 
     try {
-      const res = await fetch(`http://localhost:8000${endpoint}`, {
+      const res = await fetch(`${API_URL}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
@@ -33,10 +35,9 @@ export default function UserLoginPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || data.message || 'Authentication failed');
 
-      if (!isRegister) {
-        localStorage.setItem('token', data.token);
-        localStorage.setItem('user', JSON.stringify(data.user));
-      }
+      // Save token and user info on both successful login and registration
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('user', JSON.stringify(data.user));
 
       router.push('/');
     } catch (err) {
@@ -162,29 +163,35 @@ export default function UserLoginPage() {
         </div>
 
         {/* RIGHT COLUMN: Brand & Action */}
-        <div className="flex flex-col items-center justify-between py-16 px-8 relative">
+        <div className="flex flex-col items-center justify-between py-16 px-8 relative h-full">
           
-          {/* Top Logo */}
-          <div className="flex items-center gap-4 mt-12 animate-fade-in-up">
-            <img
-              src="/images/logo.png"
-              alt="TREMBLE logo"
-              className="h-16 w-16 object-contain drop-shadow-[0_0_15px_rgba(255,255,255,0.4)]"
-            />
-            <span className="text-4xl font-black tracking-[0.2em] text-white">
-              TREMBLE
-            </span>
-          </div>
+          <div className="flex-grow flex flex-col items-center justify-center animate-fade-in-up w-full mt-24">
+            {/* Glowing Logo */}
+            <div className="relative mb-8">
+              <div className="absolute inset-0 bg-white blur-[40px] rounded-full opacity-60"></div>
+              <img loading="lazy"
+                src="/images/logo.png"
+                alt="TREMBLE logo"
+                className="relative h-36 w-36 object-contain drop-shadow-[0_0_20px_rgba(255,255,255,1)]"
+              />
+            </div>
 
-          {/* Center/Bottom Stop the Hassle Button */}
-          <div className="flex-grow flex items-center justify-center animate-fade-in-up" style={{animationDelay: '0.2s'}}>
+            {/* Text Morph Animation */}
+            <div className="h-32 w-full mb-12">
+              <TextMorph 
+                words="MUSIC,Tremble." 
+                color="#FFFFFF" 
+                font={{ fontFamily: "Inter", variant: "Bold", fontSize: 80, letterSpacing: "-0.04em", textAlign: "center" }} 
+                transition={{ duration: 1.5, delay: 1.5, ease: "easeInOut" }} 
+              />
+            </div>
+
+            {/* Skip to Listening Button */}
             <Link 
               href="/"
               className="group relative px-12 py-6 rounded-full bg-white/5 backdrop-blur-2xl border border-white/20 shadow-[0_0_40px_rgba(0,0,0,0.4)] flex items-center gap-4 hover:bg-white/10 hover:scale-105 hover:border-white/40 transition-all duration-300"
             >
-              {/* Subtle inner gradient */}
               <div className="absolute inset-0 rounded-full bg-gradient-to-r from-indigo-500/10 to-purple-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-              
               <span className="text-white text-xl font-bold tracking-wider z-10">Skip to Listening</span>
               <div className="w-10 h-10 rounded-full bg-white text-black flex items-center justify-center z-10 group-hover:rotate-45 transition-transform duration-300 shadow-xl">
                 <ArrowUpRight size={20} strokeWidth={3} />
@@ -192,7 +199,7 @@ export default function UserLoginPage() {
             </Link>
           </div>
 
-          <div className="mb-4">
+          <div className="mb-4 mt-auto">
              <p className="text-zinc-600 text-sm font-medium">
               &copy; {new Date().getFullYear()} TREMBLE. All rights reserved.
             </p>

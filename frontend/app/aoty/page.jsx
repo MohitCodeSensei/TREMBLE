@@ -1,18 +1,36 @@
 "use client";
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Play } from 'lucide-react';
 import Link from 'next/link';
 import { usePlayer } from '../../context/PlayerContext';
-import { allMockTracks } from '../../utils/mockData';
+import { API_URL } from '../../utils/api';
+import SafeImage from '../../components/SafeImage';
 
 const AOTY = () => {
   const { setCurrentTrack, setIsNowPlayingOpen, setIsPlaying } = usePlayer();
+  const [songs, setSongs] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   const handleTrackClick = (track) => {
     setCurrentTrack(track);
     setIsNowPlayingOpen(true);
     setIsPlaying(true);
   };
+
+  useEffect(() => {
+    const fetchAOTY = async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/aoty?limit=25`);
+        const data = await res.json();
+        setSongs(data);
+      } catch (err) {
+        console.error("Failed to fetch AOTY songs", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchAOTY();
+  }, []);
 
   const tabs = [
     { name: 'Home', path: '/' },
@@ -41,22 +59,35 @@ const AOTY = () => {
           <h2 className="text-2xl font-bold text-white tracking-tight">Album Of The Year (AOTY)</h2>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
-          {allMockTracks.slice(1, 6).map((item) => (
-            <div onClick={() => handleTrackClick(item)} key={item.id} className="group cursor-pointer bg-zinc-900/40 hover:bg-zinc-800/60 p-4 rounded-2xl transition-colors duration-300">
-              <div className="relative aspect-square rounded-xl overflow-hidden mb-4 shadow-[0_8px_24px_rgba(0,0,0,0.4)]">
-                <img src={item.cover_url} alt={item.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                  <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-xl translate-y-4 group-hover:translate-y-0 transition-all duration-300">
-                    <Play size={24} fill="black" className="text-black ml-1" />
+        {isLoading ? (
+          <div className="min-h-[50vh] flex flex-col items-center justify-center w-full">
+            <img src="/images/tremble_loading_new.gif" alt="Loading..." className="w-56 h-56 sm:w-64 sm:h-64 object-contain drop-shadow-[0_0_35px_rgba(255,255,255,0.25)]" />
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
+            {songs.map((item) => (
+              <div onClick={() => handleTrackClick(item)} key={item.id || item.youtube_id} className="group cursor-pointer bg-zinc-900/40 hover:bg-zinc-800/60 p-4 rounded-2xl transition-colors duration-300">
+                <div className="relative aspect-square rounded-xl overflow-hidden mb-4 shadow-[0_8px_24px_rgba(0,0,0,0.4)]">
+                  <SafeImage 
+                    src={item.cover_url} 
+                    alt={item.title} 
+                    title={item.title}
+                    artist={item.artist}
+                    type="song"
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+                  />
+                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                    <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-xl translate-y-4 group-hover:translate-y-0 transition-all duration-300">
+                      <Play size={24} fill="black" className="text-black ml-1" />
+                    </div>
                   </div>
                 </div>
+                <div className="text-white font-bold text-base truncate">{item.title}</div>
+                <div className="text-zinc-400 text-sm truncate mt-1">{item.artist}</div>
               </div>
-              <div className="text-white font-bold text-base truncate">{item.title}</div>
-              <div className="text-zinc-400 text-sm truncate mt-1">{item.artist_name}</div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </section>
       
       <div className="h-20"></div>

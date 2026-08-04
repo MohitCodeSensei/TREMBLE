@@ -48,10 +48,10 @@ const SplashScreen = () => {
   return (
     <div className={`fixed inset-0 z-[100] flex flex-col items-center justify-center transition-colors duration-[800ms] ${stage === 'exiting' ? 'bg-black/0 backdrop-blur-none pointer-events-none' : 'bg-black backdrop-blur-2xl'}`}>
       <div className={`flex flex-col items-center gap-6 ${animationClass}`}>
-        <img 
-          src="/images/logo.png" 
-          alt="TREMBLE" 
-          className="w-40 h-40 object-contain drop-shadow-[0_0_50px_rgba(255,255,255,0.5)] animate-pulse"
+        <img loading="lazy" 
+          src="/images/tremble_loading.gif" 
+          alt="TREMBLE Loading" 
+          className="w-48 h-48 object-contain drop-shadow-[0_0_50px_rgba(255,255,255,0.5)]"
         />
         <h1 className="text-7xl font-black tracking-[0.3em] text-white drop-shadow-[0_0_30px_rgba(255,255,255,0.4)]">
           TREMBLE
