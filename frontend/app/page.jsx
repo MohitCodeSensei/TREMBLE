@@ -156,10 +156,10 @@ const Home = () => {
         // CASE A: LOGGED-IN USER
         // ==============================================================
         if (user) {
-          const hasHistory = (recentTracks && recentTracks.length > 0) || ((playStats?.totalPlays || 0) > 0);
+          const hasRecentHistory = Array.isArray(recentTracks) && recentTracks.length > 0;
 
-          if (!hasHistory) {
-            // New logged-in user with no listening history yet
+          if (!hasRecentHistory) {
+            // Logged-in user with NO recently played tracks: show algorithm development prompt only
             if (isMounted) {
               setCategories([]);
               setIsLoading(false);
@@ -168,9 +168,9 @@ const Home = () => {
             return;
           }
 
-          // 1. "Similar to {song_name}" from user's most recently played song (recentTracks[0])
-          const seedTrack = recentTracks && recentTracks.length > 0 ? recentTracks[0] : null;
-          if (seedTrack) {
+          // 1. "Similar to {song_name}" ONLY from user's most recently played song
+          const seedTrack = recentTracks[0];
+          if (seedTrack && (seedTrack.title || seedTrack.name)) {
             let similarTracks = [];
             const seedId = seedTrack.youtube_id || seedTrack.id;
 
@@ -205,7 +205,7 @@ const Home = () => {
             if (similarTracks.length > 0) {
               assembledCategories.push({
                 id: 'cat_similar_to_song',
-                title: `Similar to ${seedTrack.title || 'Song'}`,
+                title: `Similar to ${seedTrack.title || seedTrack.name}`,
                 type: 'song_list',
                 tracks: similarTracks.slice(0, 15)
               });
@@ -400,7 +400,7 @@ const Home = () => {
     }
   };
 
-  const isUserWithNoHistory = user && (!recentTracks || recentTracks.length === 0) && (!playStats?.totalPlays || playStats.totalPlays === 0);
+  const isUserWithNoHistory = Boolean(user && (!recentTracks || recentTracks.length === 0));
 
   return (
     <div className="p-8 font-sans">
