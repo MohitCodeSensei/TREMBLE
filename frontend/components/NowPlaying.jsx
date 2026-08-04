@@ -148,24 +148,27 @@ const NowPlaying = () => {
 
     const lines = text.split('\n');
     const parsed = [];
-    const timeRegex = /\[(\d{2}):(\d{2})\.(\d{2,3})\]/;
+    const timeRegexGlobal = /\[(\d{1,2}):(\d{2})(?:[.:](\d{1,3}))?\]/g;
+    const timeRegexSingle = /\[(\d{1,2}):(\d{2})(?:[.:](\d{1,3}))?\]/;
     
     lines.forEach(line => {
-      const match = timeRegex.exec(line);
+      const match = timeRegexSingle.exec(line);
       if (match) {
-        const mins = parseInt(match[1]);
-        const secs = parseInt(match[2]);
-        const ms = parseInt(match[3]);
-        const time = mins * 60 + secs + (ms / 1000);
-        const textContent = line.replace(timeRegex, '').trim();
+        const mins = parseInt(match[1], 10);
+        const secs = parseInt(match[2], 10);
+        const msStr = match[3] || '0';
+        const ms = parseFloat('0.' + msStr);
+        const time = mins * 60 + secs + ms;
+        const textContent = line.replace(timeRegexGlobal, '').trim();
         if (textContent) {
           parsed.push({ time, text: textContent });
         }
-      } else if (line.trim()) {
+      } else if (line.trim() && !line.trim().startsWith('[ti:') && !line.trim().startsWith('[ar:') && !line.trim().startsWith('[al:')) {
         parsed.push({ time: 0, text: line.trim() });
       }
     });
     
+    parsed.sort((a, b) => a.time - b.time);
     setParsedLyrics(parsed);
   }, [lyrics]);
 
@@ -173,8 +176,7 @@ const NowPlaying = () => {
     if (parsedLyrics.length > 0) {
       let activeIndex = 0;
       for (let i = 0; i < parsedLyrics.length; i++) {
-        // Offset by 0.3 seconds to compensate for state update delay and make lyrics feel snappy
-        if (currentTime >= parsedLyrics[i].time - 0.3) {
+        if (currentTime >= parsedLyrics[i].time - 0.15) {
           activeIndex = i;
         } else {
           break;
@@ -374,7 +376,12 @@ const NowPlaying = () => {
                     return (
                       <div 
                         key={index}
-                        onClick={() => seekTo(line.time)}
+                        onClick={() => {
+                          if (typeof line.time === 'number') {
+                            seekTo(line.time);
+                            if (!isPlaying) togglePlay();
+                          }
+                        }}
                         className={`text-4xl font-black transition-all duration-700 ease-out cursor-pointer hover:text-white hover:blur-none hover:opacity-100 group-hover/lyrics:opacity-80 group-hover/lyrics:blur-0 ${
                           isActive ? 'text-white scale-[1.02] origin-left drop-shadow-[0_0_20px_rgba(255,255,255,0.4)]' : 
                           isPast ? 'text-white/40 blur-[4px] opacity-0 -translate-y-4' : 'text-white/40 blur-[2px]'

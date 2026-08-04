@@ -231,7 +231,11 @@ export const PlayerProvider = ({ children }) => {
   };
 
   const seekTo = (seconds) => {
-    playerRef.current?.seekTo(seconds);
+    if (playerRef.current) {
+      try {
+        playerRef.current.seekTo(seconds, true);
+      } catch (e) {}
+    }
     setCurrentTime(seconds);
   };
 
@@ -778,9 +782,6 @@ export const PlayerProvider = ({ children }) => {
   const loadTrackIntoContext = (track) => {
     if (!track) return;
 
-    // 1. Only add previous song to recently played/history if listened for >= 30 seconds
-    commitPreviousTrackListen();
-
     const rawVid = track.videoId || track.youtube_id || track.id;
     let rawCover = track.thumbnails?.[track.thumbnails.length - 1]?.url || track.thumbnails?.[0]?.url || track.cover_url || track.thumb_url || '';
     if (!rawCover && rawVid) {
@@ -807,13 +808,16 @@ export const PlayerProvider = ({ children }) => {
     setCurrentTrack(mapped);
     setLyrics(null);
 
-    // 2. Proactively fetch Trembler profile image right away
+    // Record track play in state, local storage, and database immediately
+    recordTrackPlay(mapped);
+
+    // Proactively fetch Trembler profile image right away
     prefetchTremblerAvatar(mapped);
   };
 
   useEffect(() => {
     if (currentTrack?.youtube_id) {
-      getLyrics(currentTrack.youtube_id)
+      getLyrics(currentTrack.youtube_id, currentTrack.title, currentTrack.artist_name || currentTrack.artist)
         .then(data => setLyrics(data.lyrics || "[00:00.00] Lyrics not available"))
         .catch(() => setLyrics("[00:00.00] Lyrics not available"));
         
@@ -830,7 +834,7 @@ export const PlayerProvider = ({ children }) => {
     } else {
       setLyrics("[00:00.00] Lyrics not available");
     }
-  }, [currentTrack?.youtube_id]);
+  }, [currentTrack?.youtube_id, currentTrack?.title, currentTrack?.artist_name]);
 
   useEffect(() => {
     if ('mediaSession' in navigator) {

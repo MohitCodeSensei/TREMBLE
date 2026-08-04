@@ -4,9 +4,13 @@ export const API_URL =
   (typeof process !== 'undefined' && process.env?.REACT_APP_API_URL) ||
   "http://localhost:5000";
 
-export const getLyrics = async (videoId) => {
+export const getLyrics = async (videoId, title = '', artist = '') => {
   try {
-    const res = await fetch(`${API_URL}/lyrics/${videoId}`);
+    const params = new URLSearchParams();
+    if (title) params.set('title', title);
+    if (artist) params.set('artist', artist);
+    const qs = params.toString() ? `?${params.toString()}` : '';
+    const res = await fetch(`${API_URL}/lyrics/${videoId}${qs}`);
     if (!res.ok) return { lyrics: "[00:00.00] Lyrics not available" };
     return await res.json();
   } catch (e) {

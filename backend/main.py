@@ -519,32 +519,76 @@ def search(q: str, filter: str = "all", unified: bool = False):
         print("Search Error:", e)
         return []
 
+lyrics_cache = {}
+
+def clean_for_lyrics(title: str, artist: str = ""):
+    ct = re.sub(r'\(.*?\)|\[.*?\]|official|music|video|audio|lyrics|hd|4k|feat\..*|ft\..*', '', title or '', flags=re.I).strip()
+    ca = re.sub(r'vevo|official|music|channel|topic|- topic', '', artist or '', flags=re.I).strip()
+    ct = re.sub(r'\s+', ' ', ct).strip(' -_')
+    ca = re.sub(r'\s+', ' ', ca).strip(' -_')
+    return ct, ca
+
 @app.get("/lyrics/{video_id}")
-def get_lyrics(video_id: str):
+def get_lyrics(video_id: str, title: str = None, artist: str = None):
+    if video_id in lyrics_cache:
+        return {"lyrics": lyrics_cache[video_id]}
+
     try:
-        try:
-            song = yt.get_song(video_id)
-            if song and "videoDetails" in song:
-                title = song["videoDetails"].get("title", "")
-                author = song["videoDetails"].get("author", "")
-                search_term = f"{title} {author}"
-                lrc = syncedlyrics.search(search_term)
-                if lrc:
+        clean_t = ""
+        clean_a = ""
+
+        if title or artist:
+            clean_t, clean_a = clean_for_lyrics(title, artist)
+
+        if not clean_t:
+            try:
+                song = yt.get_song(video_id)
+                if song and "videoDetails" in song:
+                    raw_title = song["videoDetails"].get("title", "")
+                    raw_author = song["videoDetails"].get("author", "")
+                    clean_t, clean_a = clean_for_lyrics(raw_title, raw_author)
+            except Exception:
+                pass
+
+        # 1. Search with synced_only=True
+        search_terms = []
+        if clean_t and clean_a:
+            search_terms.append(f"{clean_t} {clean_a}".strip())
+        if clean_t:
+            search_terms.append(clean_t.strip())
+
+        for term in search_terms:
+            try:
+                lrc = syncedlyrics.search(term, synced_only=True)
+                if lrc and "[" in lrc:
+                    lyrics_cache[video_id] = lrc
                     return {"lyrics": lrc}
-        except Exception as e:
+            except Exception:
+                pass
+
+        # 2. Fallback: Search without synced_only constraint
+        for term in search_terms:
+            try:
+                lrc = syncedlyrics.search(term)
+                if lrc:
+                    lyrics_cache[video_id] = lrc
+                    return {"lyrics": lrc}
+            except Exception:
+                pass
+
+        # 3. Fallback: YouTube Music watch playlist lyrics
+        try:
+            wp = yt.get_watch_playlist(video_id)
+            if wp and wp.get("lyrics"):
+                lyrics_data = yt.get_lyrics(wp["lyrics"])
+                text = lyrics_data.get("lyrics") or lyrics_data.get("text")
+                if text:
+                    lrc = "[00:00.00] " + text.replace("\n", "\n[00:00.00] ")
+                    lyrics_cache[video_id] = lrc
+                    return {"lyrics": lrc}
+        except Exception:
             pass
 
-        wp = yt.get_watch_playlist(video_id)
-        if wp and wp.get("lyrics"):
-            lyrics_data = yt.get_lyrics(wp["lyrics"])
-            if "lyrics" in lyrics_data:
-                text = lyrics_data["lyrics"]
-                lrc = "[00:00.00] " + text.replace("\n", "\n[00:00.00] ")
-                return {"lyrics": lrc}
-            elif "text" in lyrics_data:
-                text = lyrics_data["text"]
-                lrc = "[00:00.00] " + text.replace("\n", "\n[00:00.00] ")
-                return {"lyrics": lrc}
         return {"lyrics": "[00:00.00] Lyrics not available"}
     except Exception as e:
         return {"lyrics": "[00:00.00] Lyrics not available"}
