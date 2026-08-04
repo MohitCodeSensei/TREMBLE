@@ -294,7 +294,30 @@ export const PlayerProvider = ({ children }) => {
       if (storedUser) {
         const parsed = JSON.parse(storedUser);
         setUser(parsed);
+
+        // Hydrate user-specific cache immediately to prevent reload flash
+        const uid = parsed.id;
+        const storedLiked = localStorage.getItem(`tremble_liked_songs_${uid}`) || localStorage.getItem('tremble_liked_songs');
+        if (storedLiked) {
+          try { setLikedSongs(JSON.parse(storedLiked)); } catch (e) {}
+        }
+        const storedHist = localStorage.getItem(`tremble_history_${uid}`) || localStorage.getItem('tremble_history');
+        if (storedHist) {
+          try { setRecentTracks(JSON.parse(storedHist).map(sanitizeHistoryTrack)); } catch (e) {}
+        }
+        const storedStats = localStorage.getItem(`tremble_play_stats_${uid}`) || localStorage.getItem('tremble_play_stats');
+        if (storedStats) {
+          try { setPlayStats(JSON.parse(storedStats)); } catch (e) {}
+        }
       } else {
+        const storedLiked = localStorage.getItem('tremble_liked_songs_guest') || localStorage.getItem('tremble_liked_songs');
+        if (storedLiked) {
+          try { setLikedSongs(JSON.parse(storedLiked)); } catch (e) {}
+        }
+        const storedHist = localStorage.getItem('tremble_history_guest') || localStorage.getItem('tremble_history');
+        if (storedHist) {
+          try { setRecentTracks(JSON.parse(storedHist).map(sanitizeHistoryTrack)); } catch (e) {}
+        }
         const storedPlaylists = localStorage.getItem('tremble_playlists');
         if (storedPlaylists) {
           const parsedPlaylists = JSON.parse(storedPlaylists);
@@ -315,19 +338,22 @@ export const PlayerProvider = ({ children }) => {
   }, []);
 
   useEffect(() => {
-    if (user) {
+    if (user && user.id) {
       fetchLikedSongs(user.id);
       fetchPlaylists(user.id);
       fetchHistory(user.id);
     }
-  }, [user]);
+  }, [user?.id]);
 
   const fetchLikedSongs = async (userId) => {
     try {
       const res = await fetch(`${API_URL}/api/liked-songs/${userId}`);
       if (res.ok) {
         const data = await res.json();
-        setLikedSongs(data);
+        const validSongs = Array.isArray(data) ? data : [];
+        setLikedSongs(validSongs);
+        localStorage.setItem(`tremble_liked_songs_${userId}`, JSON.stringify(validSongs));
+        localStorage.setItem('tremble_liked_songs', JSON.stringify(validSongs));
       }
     } catch (e) {
       console.warn("Could not fetch liked songs from backend:", e.message);
@@ -341,13 +367,19 @@ export const PlayerProvider = ({ children }) => {
     const isLiked = likedSongs.some((t) => (t.id || t.youtube_id) === trackId);
     
     setLikedSongs((prev) => {
+      let updated;
       if (isLiked) {
-        return prev.filter((t) => (t.id || t.youtube_id) !== trackId);
+        updated = prev.filter((t) => (t.id || t.youtube_id) !== trackId);
+      } else {
+        updated = [...prev, track];
       }
-      return [...prev, track];
+      const storageKey = user?.id ? `tremble_liked_songs_${user.id}` : 'tremble_liked_songs_guest';
+      localStorage.setItem(storageKey, JSON.stringify(updated));
+      localStorage.setItem('tremble_liked_songs', JSON.stringify(updated));
+      return updated;
     });
 
-    if (user) {
+    if (user && user.id) {
       try {
         if (isLiked) {
            await fetch(`${API_URL}/api/liked-songs/${user.id}/${trackId}`, {
@@ -452,6 +484,13 @@ export const PlayerProvider = ({ children }) => {
   const logout = () => {
     setUser(null);
     setLikedSongs([]);
+    setRecentTracks([]);
+    setPlayStats({
+      totalPlays: 0,
+      songPlays: {},
+      artistPlays: {},
+      albumPlays: {}
+    });
     localStorage.removeItem('user');
     localStorage.removeItem('token');
   };
@@ -576,6 +615,7 @@ export const PlayerProvider = ({ children }) => {
     const trackId = sanitized.youtube_id || sanitized.id;
     if (!trackId) return;
 
+    // Update play stats in state & local storage
     setPlayStats(prev => {
       const totalPlays = (prev.totalPlays || 0) + 1;
       const songPlays = { ...(prev.songPlays || {}) };
@@ -630,6 +670,8 @@ export const PlayerProvider = ({ children }) => {
       }
 
       const nextStats = { totalPlays, songPlays, artistPlays, albumPlays };
+      const statsKey = user?.id ? `tremble_play_stats_${user.id}` : 'tremble_play_stats_guest';
+      localStorage.setItem(statsKey, JSON.stringify(nextStats));
       localStorage.setItem('tremble_play_stats', JSON.stringify(nextStats));
       return nextStats;
     });
@@ -638,11 +680,13 @@ export const PlayerProvider = ({ children }) => {
     setRecentTracks(prev => {
       const filtered = prev.filter(t => (t.youtube_id || t.id) !== trackId);
       const updated = [sanitized, ...filtered].slice(0, 50);
+      const histKey = user?.id ? `tremble_history_${user.id}` : 'tremble_history_guest';
+      localStorage.setItem(histKey, JSON.stringify(updated));
       localStorage.setItem('tremble_history', JSON.stringify(updated));
       return updated;
     });
 
-    if (user) {
+    if (user && user.id) {
       try {
         fetch(`${API_URL}/api/history`, {
           method: 'POST',
@@ -663,7 +707,7 @@ export const PlayerProvider = ({ children }) => {
         const data = await histRes.value.json();
         const deduplicated = [];
         const seen = new Set();
-        data.forEach(raw => {
+        (Array.isArray(data) ? data : []).forEach(raw => {
           const t = sanitizeHistoryTrack(raw);
           const tid = t.youtube_id || t.id;
           if (tid && !seen.has(tid)) {
@@ -672,6 +716,7 @@ export const PlayerProvider = ({ children }) => {
           }
         });
         setRecentTracks(deduplicated);
+        localStorage.setItem(`tremble_history_${userId}`, JSON.stringify(deduplicated));
         localStorage.setItem('tremble_history', JSON.stringify(deduplicated));
       }
       if (statsRes.status === 'fulfilled' && statsRes.value.ok) {
@@ -717,6 +762,7 @@ export const PlayerProvider = ({ children }) => {
               artistPlays,
               albumPlays
             };
+            localStorage.setItem(`tremble_play_stats_${userId}`, JSON.stringify(merged));
             localStorage.setItem('tremble_play_stats', JSON.stringify(merged));
             return merged;
           });
@@ -725,7 +771,7 @@ export const PlayerProvider = ({ children }) => {
     } catch (e) {
       console.warn("Could not fetch history from backend:", e.message);
       try {
-        const storedHistory = localStorage.getItem('tremble_history');
+        const storedHistory = localStorage.getItem(`tremble_history_${userId}`) || localStorage.getItem('tremble_history');
         if (storedHistory) {
           const parsed = JSON.parse(storedHistory);
           setRecentTracks(parsed.map(sanitizeHistoryTrack));

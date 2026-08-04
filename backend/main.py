@@ -1374,9 +1374,18 @@ def get_liked_songs(user_id: int):
         return []
     cursor = db.cursor(dictionary=True)
     try:
-        cursor.execute("SELECT track_data FROM liked_songs WHERE user_id = %s", (user_id,))
+        cursor.execute("SELECT track_data FROM liked_songs WHERE user_id = %s ORDER BY id DESC", (user_id,))
         rows = cursor.fetchall()
-        songs = [json.loads(row['track_data']) for row in rows]
+        songs = []
+        for row in rows:
+            td = row['track_data']
+            if isinstance(td, str):
+                try:
+                    songs.append(json.loads(td))
+                except Exception:
+                    pass
+            elif isinstance(td, dict):
+                songs.append(td)
         return songs
     except Exception as e:
         print("Error fetching liked songs:", e)
@@ -1398,10 +1407,13 @@ def add_liked_song(req: LikedSongRequest):
             
         cursor.execute(
             "INSERT IGNORE INTO liked_songs (user_id, track_id, track_data) VALUES (%s, %s, %s)",
-            (req.user_id, track_id, json.dumps(req.track_data))
+            (req.user_id, str(track_id), json.dumps(req.track_data))
         )
         db.commit()
         return {"message": "Song added"}
+    except Exception as e:
+        print("Error adding liked song:", e)
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
         cursor.close()
         db.close()
@@ -1413,9 +1425,12 @@ def remove_liked_song(user_id: int, track_id: str):
         raise HTTPException(status_code=500, detail="Database connection error")
     cursor = db.cursor()
     try:
-        cursor.execute("DELETE FROM liked_songs WHERE user_id = %s AND track_id = %s", (user_id, track_id))
+        cursor.execute("DELETE FROM liked_songs WHERE user_id = %s AND track_id = %s", (user_id, str(track_id)))
         db.commit()
         return {"message": "Song removed"}
+    except Exception as e:
+        print("Error removing liked song:", e)
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
         cursor.close()
         db.close()

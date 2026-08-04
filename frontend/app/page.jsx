@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { Play, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
 import { usePlayer } from '../context/PlayerContext';
 import { getTremblerUrl, getAlbumUrl, getTremlistUrl, getGenreSongs, API_URL } from '../utils/api';
@@ -114,24 +114,150 @@ const Home = () => {
 
   const router = useRouter();
 
+  // Derive most listened tremblers (artists) in descending order so the #1 most played artist is at index 0 (VERY LEFT)
+  const mostListenedTremblers = useMemo(() => {
+    const artistEntries = Object.values(playStats?.artistPlays || {});
+    if (artistEntries.length > 0) {
+      return artistEntries
+        .filter(entry => entry.name && entry.name !== 'Unknown Artist')
+        .sort((a, b) => (b.count || 0) - (a.count || 0));
+    }
+    // Derive from recent tracks if playStats dictionary is fresh
+    const map = {};
+    (recentTracks || []).forEach(t => {
+      const name = t.artist_name || t.artist;
+      if (name && name !== 'Unknown Artist') {
+        if (!map[name]) {
+          map[name] = {
+            id: t.artist_id || t.youtube_id || name,
+            youtube_id: t.artist_id || t.youtube_id || name,
+            name,
+            title: name,
+            type: 'artist',
+            cover_url: t.cover_url || '',
+            count: 0
+          };
+        }
+        map[name].count += (t.play_count || 1);
+      }
+    });
+    return Object.values(map).sort((a, b) => (b.count || 0) - (a.count || 0));
+  }, [playStats?.artistPlays, (recentTracks || []).length]);
+
   useEffect(() => {
     let isMounted = true;
 
     const buildHomeFeed = async () => {
-      // If user is logged in, no categories are shown (only algorithm message)
-      if (user) {
-        if (isMounted) {
-          setCategories([]);
-          setIsLoading(false);
-          setAnimateEntrance(true);
-        }
-        return;
-      }
-
       try {
         setIsLoading(true);
+        const assembledCategories = [];
 
-        // 1. Fetch or load from cache the Top 10 songs for Pop, Hip-Hop, and R&B
+        // ==============================================================
+        // CASE A: LOGGED-IN USER
+        // ==============================================================
+        if (user) {
+          const hasHistory = (recentTracks && recentTracks.length > 0) || ((playStats?.totalPlays || 0) > 0);
+
+          if (!hasHistory) {
+            // New logged-in user with no listening history yet
+            if (isMounted) {
+              setCategories([]);
+              setIsLoading(false);
+              setAnimateEntrance(true);
+            }
+            return;
+          }
+
+          // 1. "Similar to {song_name}" from user's most recently played song (recentTracks[0])
+          const seedTrack = recentTracks && recentTracks.length > 0 ? recentTracks[0] : null;
+          if (seedTrack) {
+            let similarTracks = [];
+            const seedId = seedTrack.youtube_id || seedTrack.id;
+
+            // Check if prefetched similar matches this seed
+            if (prefetchedSimilar?.seedId === seedId && prefetchedSimilar?.tracks?.length > 0) {
+              similarTracks = prefetchedSimilar.tracks;
+            } else if (seedId) {
+              try {
+                const res = await fetch(`${API_URL}/watch/${seedId}`);
+                if (res.ok) {
+                  const data = await res.json();
+                  const rawList = data.tracks || [];
+                  const seenIds = new Set(recentTracks.map(r => r.youtube_id || r.id));
+                  similarTracks = rawList.slice(1).filter(t => {
+                    const tid = t.videoId || t.id || t.youtube_id;
+                    return tid && !seenIds.has(tid);
+                  }).map(t => ({
+                    id: t.videoId || t.id || t.youtube_id,
+                    youtube_id: t.videoId || t.id || t.youtube_id,
+                    type: 'song',
+                    title: t.title || 'Unknown Track',
+                    artist: t.artists ? t.artists.map(a => a.name).join(', ') : (t.artist || ''),
+                    artist_name: t.artists ? t.artists.map(a => a.name).join(', ') : (t.artist || ''),
+                    cover_url: t.thumbnails && t.thumbnails.length > 0 ? t.thumbnails[t.thumbnails.length - 1].url : `https://i.ytimg.com/vi/${t.videoId || t.id}/hqdefault.jpg`
+                  }));
+                }
+              } catch (e) {
+                console.warn("Could not fetch similar tracks for seed:", e);
+              }
+            }
+
+            if (similarTracks.length > 0) {
+              assembledCategories.push({
+                id: 'cat_similar_to_song',
+                title: `Similar to ${seedTrack.title || 'Song'}`,
+                type: 'song_list',
+                tracks: similarTracks.slice(0, 15)
+              });
+            }
+          }
+
+          // 2. "Tremblers you vibe with" - Most listened trembler on the VERY LEFT (index 0)
+          if (mostListenedTremblers && mostListenedTremblers.length > 0) {
+            const deduplicatedTremblers = [];
+            const seenTremblerNames = new Set();
+            for (const art of mostListenedTremblers) {
+              const artName = (art.name || art.title || '').toLowerCase().trim();
+              if (artName && seenTremblerNames.has(artName)) continue;
+              if (artName) seenTremblerNames.add(artName);
+              deduplicatedTremblers.push({
+                ...art,
+                type: 'artist'
+              });
+              if (deduplicatedTremblers.length >= 12) break;
+            }
+
+            if (deduplicatedTremblers.length > 0) {
+              assembledCategories.push({
+                id: 'cat_tremblers_you_vibe_with',
+                title: 'Tremblers you vibe with',
+                type: 'trembler_list',
+                tracks: deduplicatedTremblers
+              });
+            }
+          }
+
+          // 3. "Recently Played"
+          if (recentTracks && recentTracks.length > 0) {
+            assembledCategories.push({
+              id: 'cat_recently_played',
+              title: 'Recently Played',
+              type: 'song_list',
+              tracks: recentTracks.slice(0, 15)
+            });
+          }
+
+          if (isMounted) {
+            setCategories(assembledCategories);
+            setIsLoading(false);
+            setAnimateEntrance(true);
+          }
+          return;
+        }
+
+        // ==============================================================
+        // CASE B: GUEST USER (Not Logged In)
+        // ==============================================================
         let pop = [];
         let hiphop = [];
         let rnb = [];
@@ -163,14 +289,10 @@ const Home = () => {
           } catch (e) {}
         }
 
-        const assembledCategories = [];
-
-        // 2. Check if enough guest user data exists (at least 3 played tracks)
+        // Guest dynamic recommendations if user has listened to at least 3 songs
         const hasEnoughGuestData = (recentTracks && recentTracks.length >= 3) || ((playStats?.totalPlays || 0) >= 3);
         if (hasEnoughGuestData) {
           let recTracks = [];
-
-          // Use prefetched similar tracks or query watch playlist for recent tracks
           if (prefetchedSimilar?.tracks && prefetchedSimilar.tracks.length > 0) {
             recTracks = prefetchedSimilar.tracks;
           } else if (recentTracks && recentTracks.length > 0) {
@@ -212,7 +334,7 @@ const Home = () => {
           }
         }
 
-        // 3. Add Pop, Hip-Hop, and R&B categories (top 10 each)
+        // Add Pop, Hip-Hop, and R&B categories (top 10 each)
         if (pop.length > 0) {
           assembledCategories.push({
             id: 'cat_pop',
@@ -260,7 +382,7 @@ const Home = () => {
     return () => {
       isMounted = false;
     };
-  }, [user, (recentTracks || []).length, playStats?.totalPlays, prefetchedSimilar]);
+  }, [user, (recentTracks || []).length, playStats?.totalPlays, prefetchedSimilar?.seedId, mostListenedTremblers]);
 
   const handleItemClick = (item, trackList) => {
     if (item.type === 'playlist') {
@@ -278,6 +400,8 @@ const Home = () => {
     }
   };
 
+  const isUserWithNoHistory = user && (!recentTracks || recentTracks.length === 0) && (!playStats?.totalPlays || playStats.totalPlays === 0);
+
   return (
     <div className="p-8 font-sans">
       {isLoading ? (
@@ -294,8 +418,8 @@ const Home = () => {
         <div className={`transition-all duration-1000 ease-out ${animateEntrance ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
           <h1 className="text-4xl font-black text-white mb-8 tracking-tight">Home</h1>
 
-          {user ? (
-            /* Logged-In State: Algorithm Development Display */
+          {isUserWithNoHistory ? (
+            /* Logged-In State with 0 history: Algorithm Development Prompt */
             <div className="flex flex-col items-center justify-center py-24 px-6 text-center my-6 bg-zinc-950/40 rounded-3xl border border-white/5 backdrop-blur-sm shadow-2xl">
               <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mb-6 text-white/80 shadow-[0_0_40px_rgba(255,255,255,0.06)]">
                 <Sparkles size={36} className="text-indigo-400" />
@@ -308,67 +432,99 @@ const Home = () => {
               </p>
             </div>
           ) : (
-            /* Guest State: Pop, Hip-Hop, R&B (10 songs each) + Conditional Recommendations */
+            /* Render Categories (Song Lists or Circular Trembler Lists) */
             <div className="flex flex-col gap-12 pb-16">
               {categories.map((category) => (
                 <div key={category.id || category.title} className="flex flex-col gap-4">
                   <h2 className="text-2xl font-bold text-white tracking-tight">
                     {category.title}
                   </h2>
-                  <DragScrollContainer>
-                    {category.tracks.map((song, i) => {
-                      const isCurrentPlaying = (currentTrack?.youtube_id === song.youtube_id || currentTrack?.id === song.id) && isPlaying;
-                      return (
+                  
+                  {category.type === 'trembler_list' ? (
+                    /* Tremblers You Vibe With (Circular artist profile, #1 most played artist on the VERY LEFT) */
+                    <DragScrollContainer>
+                      {category.tracks.map((trembler, i) => (
                         <div
-                          key={`song-${category.id || 'cat'}-${song.id || song.youtube_id || song.title || i}-${i}`}
-                          onClick={() => handleItemClick(song, category.tracks)}
-                          className="flex flex-col gap-3 group cursor-pointer min-w-[120px] w-[120px] md:min-w-[calc((100%-12rem)/7)] md:w-[calc((100%-12rem)/7)] shrink-0"
+                          key={`trembler-${category.id || 'cat'}-${trembler.id || trembler.youtube_id || trembler.name || i}-${i}`}
+                          onClick={() => router.push(getTremblerUrl(trembler.name || trembler.title || trembler.id || trembler.youtube_id))}
+                          className="flex flex-col items-center gap-3 group cursor-pointer min-w-[130px] w-[130px] md:min-w-[calc((100%-12rem)/7)] md:w-[calc((100%-12rem)/7)] select-none shrink-0"
                         >
-                          <div className={`relative aspect-square w-full overflow-hidden bg-zinc-800 rounded-xl transition-all duration-300 ${isCurrentPlaying ? 'shadow-[0_0_25px_rgba(255,255,255,0.6)]' : 'shadow-xl group-hover:shadow-[0_20px_40px_rgba(0,0,0,0.5)]'}`}>
+                          <div className="relative aspect-square w-full rounded-full overflow-hidden bg-zinc-900 border-2 border-white/10 shadow-xl group-hover:border-indigo-500/60 group-hover:shadow-[0_0_25px_rgba(99,102,241,0.35)] transition-all duration-500">
                             <SafeImage 
-                              src={song.cover_url || (song.youtube_id || song.id ? `https://i.ytimg.com/vi/${song.youtube_id || song.id}/hqdefault.jpg` : '')} 
-                              alt={song.title} 
-                              title={song.title} 
-                              artist={song.artist_name || song.artist}
-                              videoId={song.youtube_id || song.id}
-                              type={song.type || 'song'}
-                              className={`w-full h-full object-cover transition-all duration-500 ${isCurrentPlaying ? 'saturate-50 blur-[2px]' : 'group-hover:scale-110'}`}
+                              src={trembler.cover_url || ''} 
+                              alt={trembler.name || trembler.title} 
+                              title={trembler.name || trembler.title} 
+                              artist={trembler.name || trembler.title}
+                              type="artist"
+                              className="w-full h-full object-cover scale-100 group-hover:scale-110 transition-transform duration-500 ease-out"
+                              useOriginalSize={true}
                             />
-                            
-                            {/* Hover Play Button */}
-                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
-                              {!isCurrentPlaying && (
-                                <div className="w-14 h-14 bg-indigo-500 rounded-full flex items-center justify-center transform translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300 hover:scale-110 shadow-lg">
-                                  <Play size={24} fill="currentColor" className="text-white ml-1" />
-                                </div>
-                              )}
-                            </div>
-
-                            {/* Playing Track Overlay */}
-                            {isCurrentPlaying && (
-                              <>
-                                <img 
-                                  src="/images/tremble_song_overlay.gif" 
-                                  alt="playing" 
-                                  className="absolute inset-0 w-full h-full object-cover rounded-xl opacity-75 mix-blend-screen z-10 pointer-events-none scale-75" 
-                                />
-                                <div className="absolute inset-0 border-2 border-white/100 rounded-xl z-20 pointer-events-none" />
-                              </>
-                            )}
                           </div>
-
-                          <div className="flex flex-col mt-1">
+                          <div className="flex flex-col items-center text-center mt-1 w-full px-1">
                             <span className="text-white font-bold text-base truncate w-full group-hover:text-indigo-400 transition-colors">
-                              {song.title}
-                            </span>
-                            <span className="text-zinc-400 text-sm truncate font-medium mt-0.5 capitalize">
-                              {song.artist_name || song.artist || ''}
+                              {trembler.name || trembler.title}
                             </span>
                           </div>
                         </div>
-                      );
-                    })}
-                  </DragScrollContainer>
+                      ))}
+                    </DragScrollContainer>
+                  ) : (
+                    /* Standard Song List */
+                    <DragScrollContainer>
+                      {category.tracks.map((song, i) => {
+                        const isCurrentPlaying = (currentTrack?.youtube_id === song.youtube_id || currentTrack?.id === song.id) && isPlaying;
+                        return (
+                          <div
+                            key={`song-${category.id || 'cat'}-${song.id || song.youtube_id || song.title || i}-${i}`}
+                            onClick={() => handleItemClick(song, category.tracks)}
+                            className="flex flex-col gap-3 group cursor-pointer min-w-[120px] w-[120px] md:min-w-[calc((100%-12rem)/7)] md:w-[calc((100%-12rem)/7)] shrink-0"
+                          >
+                            <div className={`relative aspect-square w-full overflow-hidden bg-zinc-800 rounded-xl transition-all duration-300 ${isCurrentPlaying ? 'shadow-[0_0_25px_rgba(255,255,255,0.6)]' : 'shadow-xl group-hover:shadow-[0_20px_40px_rgba(0,0,0,0.5)]'}`}>
+                              <SafeImage 
+                                src={song.cover_url || (song.youtube_id || song.id ? `https://i.ytimg.com/vi/${song.youtube_id || song.id}/hqdefault.jpg` : '')} 
+                                alt={song.title} 
+                                title={song.title} 
+                                artist={song.artist_name || song.artist}
+                                videoId={song.youtube_id || song.id}
+                                type={song.type || 'song'}
+                                className={`w-full h-full object-cover transition-all duration-500 ${isCurrentPlaying ? 'saturate-50 blur-[2px]' : 'group-hover:scale-110'}`}
+                              />
+                              
+                              {/* Hover Play Button */}
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
+                                {!isCurrentPlaying && (
+                                  <div className="w-14 h-14 bg-indigo-500 rounded-full flex items-center justify-center transform translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300 hover:scale-110 shadow-lg">
+                                    <Play size={24} fill="currentColor" className="text-white ml-1" />
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Playing Track Overlay */}
+                              {isCurrentPlaying && (
+                                <>
+                                  <img 
+                                    src="/images/tremble_song_overlay.gif" 
+                                    alt="playing" 
+                                    className="absolute inset-0 w-full h-full object-cover rounded-xl opacity-75 mix-blend-screen z-10 pointer-events-none scale-75" 
+                                  />
+                                  <div className="absolute inset-0 border-2 border-white/100 rounded-xl z-20 pointer-events-none" />
+                                </>
+                              )}
+                            </div>
+
+                            <div className="flex flex-col mt-1">
+                              <span className="text-white font-bold text-base truncate w-full group-hover:text-indigo-400 transition-colors">
+                                {song.title}
+                              </span>
+                              <span className="text-zinc-400 text-sm truncate font-medium mt-0.5 capitalize">
+                                {song.artist_name || song.artist || ''}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </DragScrollContainer>
+                  )}
                 </div>
               ))}
             </div>
