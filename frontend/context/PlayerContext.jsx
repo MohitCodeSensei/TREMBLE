@@ -1004,17 +1004,74 @@ export const PlayerProvider = ({ children }) => {
   };
 
   const ytOpts = useMemo(() => ({
-    height: '0',
-    width: '0',
+    height: '200',
+    width: '200',
     playerVars: {
       autoplay: 1,
       controls: 0,
       disablekb: 1,
       fs: 0,
       playsinline: 1,
+      enablejsapi: 1,
+      origin: typeof window !== 'undefined' ? window.location.origin : '',
       vq: 'tiny' // Use lowest quality to save bandwidth since it's only audio
     },
   }), []);
+
+  // Web Audio Silent Keep-Alive to prevent browser background tab suspension & Alt-tab pauses
+  const audioKeepAliveRef = useRef(null);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    if (isPlaying) {
+      try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (AudioCtx) {
+          if (!audioKeepAliveRef.current) {
+            const ctx = new AudioCtx();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            gain.gain.value = 0.00001; // Inaudible keep-alive signal
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+            audioKeepAliveRef.current = { ctx, osc, gain };
+          } else if (audioKeepAliveRef.current.ctx?.state === 'suspended') {
+            audioKeepAliveRef.current.ctx.resume();
+          }
+        }
+      } catch (e) {
+        console.warn("Audio keep-alive note:", e);
+      }
+    } else {
+      if (audioKeepAliveRef.current?.ctx && audioKeepAliveRef.current.ctx.state === 'running') {
+        audioKeepAliveRef.current.ctx.suspend();
+      }
+    }
+  }, [isPlaying]);
+
+  // Ensure continuous background playback when switching tabs or Alt-tabbing
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        if (isPlaying && playerRef.current) {
+          try {
+            const state = playerRef.current.getPlayerState?.();
+            if (state === 2) {
+              playerRef.current.playVideo();
+            }
+          } catch (e) {}
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('blur', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('blur', handleVisibilityChange);
+    };
+  }, [isPlaying]);
 
   // Global Keyboard Controls
   useEffect(() => {
@@ -1100,8 +1157,12 @@ export const PlayerProvider = ({ children }) => {
     }}>
       {children}
       
-      {/* Hidden YouTube Player Engine */}
-      <div className="fixed -top-[9999px] -left-[9999px] opacity-0 pointer-events-none">
+      {/* Background-safe YouTube Player Engine */}
+      <div 
+        aria-hidden="true"
+        className="fixed bottom-0 right-0 w-[200px] h-[200px] pointer-events-none opacity-[0.001] -z-50 overflow-hidden"
+        style={{ transform: 'translateZ(0)' }}
+      >
         {currentTrack?.youtube_id && (
           <YouTube 
             videoId={currentTrack.youtube_id} 
