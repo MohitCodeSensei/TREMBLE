@@ -32,6 +32,13 @@ export default function UserLoginPage() {
         body: JSON.stringify(formData),
       });
 
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error(
+          `Unable to connect to backend server at ${API_URL || '(empty)'}. Status ${res.status}. Please check NEXT_PUBLIC_API_URL in Vercel settings.`
+        );
+      }
+
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || data.message || 'Authentication failed');
 

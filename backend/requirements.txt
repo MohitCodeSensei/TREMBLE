@@ -7,3 +7,5 @@ mysql-connector-python
 bcrypt
 yt-dlp
 python-multipart
+psycopg2-binary
+python-dotenv

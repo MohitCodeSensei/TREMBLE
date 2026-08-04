@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import InteractiveBackground from '../../../components/ui/InteractiveBackground';
+import { API_URL } from '../../../utils/api';
 
 export default function ArtistLoginPage() {
   const [username, setUsername] = useState('');
@@ -16,7 +17,7 @@ export default function ArtistLoginPage() {
     setIsLoading(true);
 
     try {
-      const res = await fetch('http://localhost:5000/api/auth/artist/login', {
+      const res = await fetch(`${API_URL}/api/auth/artist/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password }),

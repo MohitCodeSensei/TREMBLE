@@ -5,7 +5,6 @@ from pydantic import BaseModel
 from ytmusicapi import YTMusic
 import uuid
 import syncedlyrics
-import mysql.connector
 import bcrypt
 import json
 import re
@@ -15,8 +14,13 @@ import shutil
 import urllib.request
 import requests
 import difflib
+from db import get_db, init_tables
 
 app = FastAPI(title="YT Music Library API")
+
+@app.on_event("startup")
+def on_startup():
+    init_tables()
 
 # Ensure uploads directory exists and mount it
 os.makedirs("uploads", exist_ok=True)
@@ -28,6 +32,14 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.get("/")
+def root():
+    return {"status": "ok", "message": "TREMBLE API is live and operational"}
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
 
 yt = YTMusic()
 import time
@@ -1188,22 +1200,6 @@ def get_autoplay(video_id: str):
         print("Autoplay Error:", e)
         return []
 
-
-def get_db():
-    try:
-        return mysql.connector.connect(
-            host='127.0.0.1',
-            user='root',
-            password='',
-            database='tremble_db',
-            connection_timeout=2
-        )
-    except Exception as e:
-        print("Database connection failed:", e)
-        return None
-
-
-
 @app.post("/api/auth/register")
 def register(req: AuthRequest):
     db = get_db()
@@ -1226,7 +1222,7 @@ def register(req: AuthRequest):
         db.commit()
         user_id = cursor.lastrowid
         return {"message": "User created", "user": {"id": user_id, "username": req.username, "email": req.email}, "token": "dummy_token"}
-    except mysql.connector.Error as err:
+    except Exception as err:
         raise HTTPException(status_code=500, detail=str(err))
     finally:
         cursor.close()
@@ -1291,7 +1287,7 @@ def update_profile(req: ProfileUpdateRequest):
         cursor.execute("SELECT id, username, email, profile_picture_url FROM users WHERE id = %s", (req.user_id,))
         updated_user = cursor.fetchone()
         return {"message": "Profile updated", "user": updated_user}
-    except mysql.connector.Error as err:
+    except Exception as err:
         raise HTTPException(status_code=500, detail=str(err))
     finally:
         cursor.close()
