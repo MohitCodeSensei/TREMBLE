@@ -164,6 +164,7 @@ class ProfileUpdateRequest(BaseModel):
     user_id: int
     username: str
     email: str
+    profile_picture_url: Optional[str] = None
 
 class LikedSongRequest(BaseModel):
     user_id: int
@@ -1324,7 +1325,10 @@ def update_profile(req: ProfileUpdateRequest):
         if cursor.fetchone():
             raise HTTPException(status_code=400, detail="Username or email already in use")
             
-        cursor.execute("UPDATE users SET username = %s, email = %s WHERE id = %s", (req.username, req.email, req.user_id))
+        if req.profile_picture_url:
+            cursor.execute("UPDATE users SET username = %s, email = %s, profile_picture_url = %s WHERE id = %s", (req.username, req.email, req.profile_picture_url, req.user_id))
+        else:
+            cursor.execute("UPDATE users SET username = %s, email = %s WHERE id = %s", (req.username, req.email, req.user_id))
         db.commit()
         
         # Return updated user

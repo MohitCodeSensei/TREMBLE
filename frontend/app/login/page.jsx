@@ -55,11 +55,7 @@ export default function UserLoginPage() {
   };
 
   return (
-    <div className="relative min-h-screen z-40 flex flex-col font-sans selection:bg-indigo-500/30 overflow-hidden">
-      
-      {/* Solid Black Background covering global layout's mesh */}
-      <div className="fixed inset-0 bg-black z-0 pointer-events-none"></div>
-
+    <div className="relative min-h-screen z-10 flex flex-col font-sans selection:bg-indigo-500/30 overflow-hidden">
       {/* Main Split Layout Grid */}
       <div className="relative z-10 w-full flex-grow grid grid-cols-1 md:grid-cols-2">
         

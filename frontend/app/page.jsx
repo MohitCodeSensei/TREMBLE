@@ -1,6 +1,6 @@
 "use client";
 import React, { useEffect, useState, useRef, useMemo } from 'react';
-import { Play, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
+import { Play, ChevronLeft, ChevronRight, Sparkles, Disc } from 'lucide-react';
 import { usePlayer } from '../context/PlayerContext';
 import { getTremblerUrl, getAlbumUrl, getTremlistUrl, getGenreSongs, API_URL } from '../utils/api';
 import { useRouter } from 'next/navigation';
@@ -144,6 +144,18 @@ const Home = () => {
     return Object.values(map).sort((a, b) => (b.count || 0) - (a.count || 0));
   }, [playStats?.artistPlays, (recentTracks || []).length]);
 
+  // Derive frequently listened albums (ONLY albums with any song listened to > 3 times)
+  const frequentlyListenedAlbums = useMemo(() => {
+    const albumEntries = Object.values(playStats?.albumPlays || {});
+    const filtered = albumEntries.filter(entry => {
+      const playCount = entry.count || 0;
+      const songMax = entry.songMaxPlayCount || 0;
+      // Requirement: Any song from an album listened more than 3 times (songMax >= 3 or count >= 3)
+      return (songMax >= 3 || playCount >= 3) && entry.title && entry.title !== 'Single';
+    });
+    return filtered.sort((a, b) => ((b.songMaxPlayCount || b.count || 0) - (a.songMaxPlayCount || a.count || 0)));
+  }, [playStats?.albumPlays]);
+
   useEffect(() => {
     let isMounted = true;
 
@@ -168,11 +180,20 @@ const Home = () => {
             return;
           }
 
-          // 1. "Similar to {song_name}" ONLY from user's most recently played song
-          const seedTrack = recentTracks[0];
-          if (seedTrack && (seedTrack.title || seedTrack.name)) {
+          // 1. "Recently Played" is FIRST category
+          if (recentTracks && recentTracks.length > 0) {
+            assembledCategories.push({
+              id: 'cat_recently_played',
+              title: 'Recently Played',
+              type: 'song_list',
+              tracks: recentTracks.slice(0, 15)
+            });
+          }
+
+          // 2. "Similar to {song_name}" ONLY shown when user has an active song in "Now Playing"
+          if (currentTrack && (currentTrack.title || currentTrack.name)) {
             let similarTracks = [];
-            const seedId = seedTrack.youtube_id || seedTrack.id;
+            const seedId = currentTrack.youtube_id || currentTrack.id;
 
             // Check if prefetched similar matches this seed
             if (prefetchedSimilar?.seedId === seedId && prefetchedSimilar?.tracks?.length > 0) {
@@ -198,21 +219,21 @@ const Home = () => {
                   }));
                 }
               } catch (e) {
-                console.warn("Could not fetch similar tracks for seed:", e);
+                console.warn("Could not fetch similar tracks for current track:", e);
               }
             }
 
             if (similarTracks.length > 0) {
               assembledCategories.push({
                 id: 'cat_similar_to_song',
-                title: `Similar to ${seedTrack.title || seedTrack.name}`,
+                title: `Similar to ${currentTrack.title || currentTrack.name}`,
                 type: 'song_list',
                 tracks: similarTracks.slice(0, 15)
               });
             }
           }
 
-          // 2. "Tremblers you vibe with" - Most listened trembler on the VERY LEFT (index 0)
+          // 3. "Tremblers you vibe with" - Most listened trembler on the VERY LEFT (index 0)
           if (mostListenedTremblers && mostListenedTremblers.length > 0) {
             const deduplicatedTremblers = [];
             const seenTremblerNames = new Set();
@@ -237,13 +258,13 @@ const Home = () => {
             }
           }
 
-          // 3. "Recently Played"
-          if (recentTracks && recentTracks.length > 0) {
+          // 4. "Frequently Listened Albums" - Only albums with any song listened > 3 times
+          if (frequentlyListenedAlbums && frequentlyListenedAlbums.length > 0) {
             assembledCategories.push({
-              id: 'cat_recently_played',
-              title: 'Recently Played',
-              type: 'song_list',
-              tracks: recentTracks.slice(0, 15)
+              id: 'cat_frequently_listened_albums',
+              title: 'Frequently Listened Albums',
+              type: 'album_list',
+              tracks: frequentlyListenedAlbums.slice(0, 10)
             });
           }
 
@@ -289,49 +310,72 @@ const Home = () => {
           } catch (e) {}
         }
 
-        // Guest dynamic recommendations if user has listened to at least 3 songs
-        const hasEnoughGuestData = (recentTracks && recentTracks.length >= 3) || ((playStats?.totalPlays || 0) >= 3);
-        if (hasEnoughGuestData) {
-          let recTracks = [];
-          if (prefetchedSimilar?.tracks && prefetchedSimilar.tracks.length > 0) {
-            recTracks = prefetchedSimilar.tracks;
-          } else if (recentTracks && recentTracks.length > 0) {
-            const seed = recentTracks[0];
-            try {
-              const seedId = seed.youtube_id || seed.id;
-              if (seedId) {
-                const res = await fetch(`${API_URL}/watch/${seedId}`);
-                if (res.ok) {
-                  const data = await res.json();
-                  const rawList = data.tracks || [];
-                  const seenIds = new Set(recentTracks.map(r => r.youtube_id || r.id));
-                  recTracks = rawList.slice(1).filter(t => {
-                    const tid = t.videoId || t.id || t.youtube_id;
-                    return tid && !seenIds.has(tid);
-                  }).map(t => ({
-                    id: t.videoId || t.id || t.youtube_id,
-                    youtube_id: t.videoId || t.id || t.youtube_id,
-                    type: 'song',
-                    title: t.title || 'Unknown Track',
-                    artist: t.artists ? t.artists.map(a => a.name).join(', ') : (t.artist || ''),
-                    artist_name: t.artists ? t.artists.map(a => a.name).join(', ') : (t.artist || ''),
-                    cover_url: t.thumbnails && t.thumbnails.length > 0 ? t.thumbnails[t.thumbnails.length - 1].url : `https://i.ytimg.com/vi/${t.videoId || t.id}/hqdefault.jpg`
-                  }));
-                }
-              }
-            } catch (e) {
-              console.warn("Guest recommendation fetch note:", e);
-            }
-          }
+        // 1. If guest has recent history, show "Recently Played" first
+        if (recentTracks && recentTracks.length > 0) {
+          assembledCategories.push({
+            id: 'cat_recently_played',
+            title: 'Recently Played',
+            type: 'song_list',
+            tracks: recentTracks.slice(0, 15)
+          });
+        }
 
-          if (recTracks.length > 0) {
+        // 2. "Similar to {song_name}" ONLY shown when music session is active in "Now Playing"
+        if (currentTrack && (currentTrack.title || currentTrack.name)) {
+          let similarTracks = [];
+          const seedId = currentTrack.youtube_id || currentTrack.id;
+          if (prefetchedSimilar?.seedId === seedId && prefetchedSimilar?.tracks?.length > 0) {
+            similarTracks = prefetchedSimilar.tracks;
+          } else if (seedId) {
+            try {
+              const res = await fetch(`${API_URL}/watch/${seedId}`);
+              if (res.ok) {
+                const data = await res.json();
+                const rawList = data.tracks || [];
+                const seenIds = new Set((recentTracks || []).map(r => r.youtube_id || r.id));
+                similarTracks = rawList.slice(1).filter(t => {
+                  const tid = t.videoId || t.id || t.youtube_id;
+                  return tid && !seenIds.has(tid);
+                }).map(t => ({
+                  id: t.videoId || t.id || t.youtube_id,
+                  youtube_id: t.videoId || t.id || t.youtube_id,
+                  type: 'song',
+                  title: t.title || 'Unknown Track',
+                  artist: t.artists ? t.artists.map(a => a.name).join(', ') : (t.artist || ''),
+                  artist_name: t.artists ? t.artists.map(a => a.name).join(', ') : (t.artist || ''),
+                  cover_url: t.thumbnails && t.thumbnails.length > 0 ? t.thumbnails[t.thumbnails.length - 1].url : `https://i.ytimg.com/vi/${t.videoId || t.id}/hqdefault.jpg`
+                }));
+              }
+            } catch (e) {}
+          }
+          if (similarTracks.length > 0) {
             assembledCategories.push({
-              id: 'cat_guest_recommended',
-              title: 'Recommended for you (Please log in to enhance algorithm accuracy)',
+              id: 'cat_similar_to_song',
+              title: `Similar to ${currentTrack.title || currentTrack.name}`,
               type: 'song_list',
-              tracks: recTracks.slice(0, 10)
+              tracks: similarTracks.slice(0, 15)
             });
           }
+        }
+
+        // 3. Guest Tremblers you vibe with (most listened on the VERY LEFT)
+        if (mostListenedTremblers && mostListenedTremblers.length > 0) {
+          assembledCategories.push({
+            id: 'cat_tremblers_you_vibe_with',
+            title: 'Tremblers you vibe with',
+            type: 'trembler_list',
+            tracks: mostListenedTremblers.slice(0, 10)
+          });
+        }
+
+        // 4. Guest Frequently Listened Albums (only songs played > 3 times)
+        if (frequentlyListenedAlbums && frequentlyListenedAlbums.length > 0) {
+          assembledCategories.push({
+            id: 'cat_frequently_listened_albums',
+            title: 'Frequently Listened Albums',
+            type: 'album_list',
+            tracks: frequentlyListenedAlbums.slice(0, 10)
+          });
         }
 
         // Add Pop, Hip-Hop, and R&B categories (top 10 each)
@@ -382,7 +426,7 @@ const Home = () => {
     return () => {
       isMounted = false;
     };
-  }, [user, (recentTracks || []).length, playStats?.totalPlays, prefetchedSimilar?.seedId, mostListenedTremblers]);
+  }, [user, (recentTracks || []).length, playStats?.totalPlays, currentTrack?.youtube_id || currentTrack?.id, prefetchedSimilar?.seedId, mostListenedTremblers, frequentlyListenedAlbums]);
 
   const handleItemClick = (item, trackList) => {
     if (item.type === 'playlist') {
@@ -432,7 +476,7 @@ const Home = () => {
               </p>
             </div>
           ) : (
-            /* Render Categories (Song Lists or Circular Trembler Lists) */
+            /* Render Categories (Song Lists, Trembler Lists, or Album Lists) */
             <div className="flex flex-col gap-12 pb-16">
               {categories.map((category) => (
                 <div key={category.id || category.title} className="flex flex-col gap-4">
@@ -463,6 +507,36 @@ const Home = () => {
                           <div className="flex flex-col items-center text-center mt-1 w-full px-1">
                             <span className="text-white font-bold text-base truncate w-full group-hover:text-indigo-400 transition-colors">
                               {trembler.name || trembler.title}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </DragScrollContainer>
+                  ) : category.type === 'album_list' ? (
+                    /* Frequently Listened Albums (Only songs played > 3 times) */
+                    <DragScrollContainer>
+                      {category.tracks.map((album, i) => (
+                        <div
+                          key={`album-${category.id || 'cat'}-${album.id || album.youtube_id || album.title || i}-${i}`}
+                          onClick={() => router.push(getAlbumUrl(album, album.title || album.name))}
+                          className="flex flex-col gap-3 group cursor-pointer min-w-[120px] w-[120px] md:min-w-[calc((100%-12rem)/7)] md:w-[calc((100%-12rem)/7)] shrink-0"
+                        >
+                          <div className="relative aspect-square w-full overflow-hidden bg-zinc-800 rounded-2xl shadow-xl group-hover:shadow-[0_20px_40px_rgba(0,0,0,0.5)] border border-white/5 group-hover:border-white/20 transition-all duration-300">
+                            <SafeImage 
+                              src={album.cover_url || ''} 
+                              alt={album.title} 
+                              title={album.title} 
+                              artist={album.artist}
+                              type="album"
+                              className="w-full h-full object-cover transition-all duration-500 group-hover:scale-105"
+                            />
+                          </div>
+                          <div className="flex flex-col mt-1">
+                            <span className="text-white font-bold text-base truncate w-full group-hover:text-indigo-400 transition-colors">
+                              {album.title}
+                            </span>
+                            <span className="text-zinc-400 text-sm truncate font-medium mt-0.5 capitalize">
+                              {album.artist || 'Album'}
                             </span>
                           </div>
                         </div>

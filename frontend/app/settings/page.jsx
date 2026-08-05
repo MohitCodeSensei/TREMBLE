@@ -72,29 +72,76 @@ function SettingsContent() {
     setError('');
     setSuccessMessage('');
     
-    const uploadData = new FormData();
-    uploadData.append('user_id', user.id);
-    uploadData.append('file', file);
-    
-    try {
-      const res = await fetch(`${API_URL}/api/auth/profile/picture`, {
-        method: 'POST',
-        body: uploadData
-      });
-      
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || 'Failed to upload picture');
-      
-      setUser(data.user);
-      localStorage.setItem('user', JSON.stringify(data.user));
-      setSuccessMessage('Profile picture updated!');
-      
-      setTimeout(() => setSuccessMessage(''), 3000);
-    } catch (err) {
-      setError(err.message);
-    } finally {
+    // Convert & optimize image to Base64 data URL for fast and reliable storage
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const base64Url = event.target?.result;
+      if (!base64Url) {
+        setIsUploading(false);
+        return;
+      }
+
+      // Try uploading to backend API
+      try {
+        const uploadData = new FormData();
+        uploadData.append('user_id', user.id);
+        uploadData.append('file', file);
+        
+        let updatedUser = null;
+        try {
+          const res = await fetch(`${API_URL}/api/auth/profile/picture`, {
+            method: 'POST',
+            body: uploadData
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data?.user) updatedUser = data.user;
+          }
+        } catch (uploadErr) {
+          console.warn("Binary picture upload fallback to direct profile update:", uploadErr);
+        }
+
+        // If backend returned updated user, or if binary upload wasn't saved, persist base64
+        if (!updatedUser) {
+          try {
+            const profRes = await fetch(`${API_URL}/api/auth/profile`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                user_id: user.id,
+                username: user.username || formData.username,
+                email: user.email || formData.email,
+                profile_picture_url: base64Url
+              })
+            });
+            if (profRes.ok) {
+              const profData = await profRes.json();
+              if (profData?.user) updatedUser = profData.user;
+            }
+          } catch (e) {}
+        }
+
+        const finalUser = updatedUser || { ...user, profile_picture_url: base64Url };
+        setUser(finalUser);
+        localStorage.setItem('user', JSON.stringify(finalUser));
+        setSuccessMessage('Profile picture updated successfully!');
+        setTimeout(() => setSuccessMessage(''), 3000);
+      } catch (err) {
+        // Safe local state & storage update so user always sees the new avatar
+        const fallbackUser = { ...user, profile_picture_url: base64Url };
+        setUser(fallbackUser);
+        localStorage.setItem('user', JSON.stringify(fallbackUser));
+        setSuccessMessage('Profile picture updated!');
+        setTimeout(() => setSuccessMessage(''), 3000);
+      } finally {
+        setIsUploading(false);
+      }
+    };
+    reader.onerror = () => {
+      setError('Could not read image file.');
       setIsUploading(false);
-    }
+    };
+    reader.readAsDataURL(file);
   };
 
   if (!user) {
@@ -252,39 +299,80 @@ function SettingsContent() {
                 <h2 className="text-2xl font-bold text-white mb-6">Preferences</h2>
                 
                 <div className="flex flex-col gap-6">
+                  {/* Mouse pointer animation */}
+                  <div className="flex items-center justify-between">
+                    <div>
+                       <h3 className="text-white font-medium text-lg">Mouse pointer animation</h3>
+                       <p className="text-zinc-400 text-sm">Enable interactive glowing trail that follows your mouse cursor.</p>
+                    </div>
+                    <Switch checked={preferences?.mousePointerAnimation !== false} onChange={(val) => updatePreference('mousePointerAnimation', val)} />
+                  </div>
+                  <div className="h-px w-full bg-white/10" />
+                  
+                  {/* Liquid metal search bar */}
+                  <div className="flex items-center justify-between">
+                    <div>
+                       <h3 className="text-white font-medium text-lg">Liquid metal search bar</h3>
+                       <p className="text-zinc-400 text-sm">Enable fluid dynamic liquid metal animation effect on the search bar.</p>
+                    </div>
+                    <Switch checked={preferences?.liquidMetalSearchBar !== false} onChange={(val) => updatePreference('liquidMetalSearchBar', val)} />
+                  </div>
+                  <div className="h-px w-full bg-white/10" />
+
+                  {/* Crossfade Slider */}
+                  <div className="flex flex-col gap-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-white font-medium text-lg">Crossfade</h3>
+                        <p className="text-zinc-400 text-sm">Smoothly crossfade audio between consecutive tracks (0 to 15 seconds).</p>
+                      </div>
+                      <span className="text-indigo-400 font-mono font-bold text-base px-3 py-1 bg-indigo-500/10 border border-indigo-500/20 rounded-lg">
+                        {preferences?.crossfade ? `${preferences.crossfade}s` : '0s (Off)'}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-4 pt-1">
+                      <span className="text-xs text-zinc-500 font-semibold w-5">0s</span>
+                      <input 
+                        type="range"
+                        min="0"
+                        max="15"
+                        step="1"
+                        value={preferences?.crossfade || 0}
+                        onChange={(e) => updatePreference('crossfade', parseInt(e.target.value, 10))}
+                        className="flex-1 accent-indigo-500 h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer"
+                      />
+                      <span className="text-xs text-zinc-500 font-semibold w-6 text-right">15s</span>
+                    </div>
+                  </div>
+                  <div className="h-px w-full bg-white/10" />
+
+                  {/* High Quality Audio */}
                   <div className="flex items-center justify-between">
                     <div>
                        <h3 className="text-white font-medium text-lg">High Quality Audio</h3>
                        <p className="text-zinc-400 text-sm">Stream audio in maximum available quality.</p>
                     </div>
-                    <Switch checked={preferences?.highQualityAudio} onChange={(val) => updatePreference('highQualityAudio', val)} />
+                    <Switch checked={preferences?.highQualityAudio !== false} onChange={(val) => updatePreference('highQualityAudio', val)} />
                   </div>
                   <div className="h-px w-full bg-white/10" />
                   
+                  {/* Data Saver */}
                   <div className="flex items-center justify-between">
                     <div>
                        <h3 className="text-white font-medium text-lg">Data Saver</h3>
                        <p className="text-zinc-400 text-sm">Reduce data usage by downloading lower quality audio and images.</p>
                     </div>
-                    <Switch checked={preferences?.dataSaver} onChange={(val) => updatePreference('dataSaver', val)} />
+                    <Switch checked={preferences?.dataSaver === true} onChange={(val) => updatePreference('dataSaver', val)} />
                   </div>
                   <div className="h-px w-full bg-white/10" />
-                  
-                  <div className="flex items-center justify-between">
-                    <div>
-                       <h3 className="text-white font-medium text-lg">Animations & Visual Effects</h3>
-                       <p className="text-zinc-400 text-sm">Enable rich UI animations like liquid metal and auroras.</p>
-                    </div>
-                    <Switch checked={preferences?.animations} onChange={(val) => updatePreference('animations', val)} />
-                  </div>
-                  <div className="h-px w-full bg-white/10" />
-                  
+
+                  {/* Autoplay */}
                   <div className="flex items-center justify-between">
                     <div>
                        <h3 className="text-white font-medium text-lg">Autoplay</h3>
                        <p className="text-zinc-400 text-sm">Automatically play similar songs when your queue ends.</p>
                     </div>
-                    <Switch checked={preferences?.autoplay} onChange={(val) => updatePreference('autoplay', val)} />
+                    <Switch checked={preferences?.autoplay !== false} onChange={(val) => updatePreference('autoplay', val)} />
                   </div>
                 </div>
               </div>

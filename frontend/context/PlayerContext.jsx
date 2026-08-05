@@ -44,7 +44,9 @@ export const PlayerProvider = ({ children }) => {
   const [preferences, setPreferences] = useState({
     highQualityAudio: true,
     dataSaver: false,
-    animations: true,
+    mousePointerAnimation: true,
+    liquidMetalSearchBar: true,
+    crossfade: 0, // 0 to 15 seconds
     autoplay: true
   });
 
@@ -332,7 +334,17 @@ export const PlayerProvider = ({ children }) => {
       
       const storedPrefs = localStorage.getItem('tremble_preferences');
       if (storedPrefs) {
-        setPreferences(JSON.parse(storedPrefs));
+        try {
+          const parsed = JSON.parse(storedPrefs);
+          setPreferences(prev => ({
+            ...prev,
+            ...parsed,
+            // Ensure proper defaults if old preferences existed
+            mousePointerAnimation: parsed.mousePointerAnimation !== undefined ? parsed.mousePointerAnimation : true,
+            liquidMetalSearchBar: parsed.liquidMetalSearchBar !== undefined ? parsed.liquidMetalSearchBar : true,
+            crossfade: typeof parsed.crossfade === 'number' ? parsed.crossfade : 0
+          }));
+        } catch (e) {}
       }
     } catch (e) {}
   }, []);
@@ -651,6 +663,7 @@ export const PlayerProvider = ({ children }) => {
       const albName = typeof sanitized.album === 'string' ? sanitized.album : sanitized.album?.name;
       if (albName && albName !== 'Single') {
         const albKey = sanitized.album_id || albName;
+        const currentSongCount = songPlays[trackId]?.count || 1;
         const albStat = albumPlays[albKey] || {
           id: sanitized.album_id || albKey,
           youtube_id: sanitized.album_id || albKey,
@@ -658,14 +671,17 @@ export const PlayerProvider = ({ children }) => {
           artist: artName,
           type: 'album',
           cover_url: sanitized.cover_url || '',
-          count: 0
+          count: 0,
+          songMaxPlayCount: 0
         };
+        const updatedMaxSong = Math.max(albStat.songMaxPlayCount || 0, currentSongCount);
         albumPlays[albKey] = {
           ...albStat,
           id: sanitized.album_id || albStat.id,
           youtube_id: sanitized.album_id || albStat.youtube_id,
           cover_url: albStat.cover_url || sanitized.cover_url || '',
-          count: (albStat.count || 0) + 1
+          count: (albStat.count || 0) + 1,
+          songMaxPlayCount: updatedMaxSong
         };
       }
 
@@ -986,14 +1002,36 @@ export const PlayerProvider = ({ children }) => {
         return;
       }
       setIsPlaying(true);
-      setDuration(playerRef.current.getDuration());
+      const totalDur = playerRef.current.getDuration() || 0;
+      setDuration(totalDur);
       lastListeningTickRef.current = Date.now();
+      
+      // If crossfade is enabled, ensure initial volume starts cleanly and ramps up
+      if (preferences?.crossfade > 0 && !isMuted) {
+        playerRef.current?.setVolume(volume);
+      }
       
       clearInterval(intervalRef.current);
       intervalRef.current = setInterval(async () => {
         if (playerRef.current) {
           const time = await playerRef.current.getCurrentTime();
+          const curDur = playerRef.current.getDuration() || totalDur;
           setCurrentTime(time);
+
+          // Crossfade volume handling
+          const xfade = preferences?.crossfade || 0;
+          if (xfade > 0 && curDur > 0 && !isMuted) {
+            const timeLeft = curDur - time;
+            if (timeLeft <= xfade && timeLeft > 0) {
+              const fadeRatio = Math.max(0.05, timeLeft / xfade);
+              playerRef.current.setVolume(Math.round(volume * fadeRatio));
+            } else if (time < xfade && time > 0) {
+              const fadeInRatio = Math.min(1, Math.max(0.1, time / xfade));
+              playerRef.current.setVolume(Math.round(volume * fadeInRatio));
+            } else {
+              playerRef.current.setVolume(volume);
+            }
+          }
 
           // Accumulate listening seconds while actively playing
           const now = Date.now();
@@ -1011,6 +1049,9 @@ export const PlayerProvider = ({ children }) => {
       lastListeningTickRef.current = null;
       clearInterval(intervalRef.current);
       if (event.data === 0) {
+        if (playerRef.current && !isMuted) {
+          playerRef.current.setVolume(volume);
+        }
         playNext();
       }
     }

@@ -60,7 +60,8 @@ const TopBarContent = () => {
     savePlaylist,
     toggleLike,
     queue,
-    currentIndex
+    currentIndex,
+    preferences
   } = usePlayer();
 
   const handlePlayNext = (track) => {
@@ -341,15 +342,19 @@ const TopBarContent = () => {
             
             {/* Liquid Metal Search Container */}
             <div className="relative w-full rounded-full overflow-hidden shadow-[0_20px_50px_-12px_rgba(0,0,0,0.5)] bg-zinc-800" style={{ padding: '2px' }}>
-               <LiquidMetal
-                  colorBack="#555555"
-                  colorTint="#ffffff"
-                  speed={0.4}
-                  repetition={4}
-                  distortion={0.15}
-                  scale={1}
-                  className="absolute inset-0 z-0 rounded-full"
-               />
+               {preferences?.liquidMetalSearchBar !== false ? (
+                 <LiquidMetal
+                    colorBack="#555555"
+                    colorTint="#ffffff"
+                    speed={0.4}
+                    repetition={4}
+                    distortion={0.15}
+                    scale={1}
+                    className="absolute inset-0 z-0 rounded-full"
+                 />
+               ) : (
+                 <div className="absolute inset-0 z-0 rounded-full bg-gradient-to-r from-zinc-700 via-zinc-800 to-zinc-700" />
+               )}
                
                {/* Inner Input Container */}
                <div className="relative z-10 rounded-full flex items-center bg-black transition-colors duration-300 group-focus-within:bg-zinc-900/90 w-full pl-6 pr-2 py-1.5 shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)]">
@@ -587,17 +592,21 @@ const TopBarContent = () => {
                 style={{ transformOrigin: 'top right' }}
                 onClick={(e) => { if(!isProfileOpen) { e.stopPropagation(); setIsProfileOpen(true); } }}
               >
-                 <div className="absolute inset-0 z-0 pointer-events-none">
-                    <LiquidMetal
-                      colorBack="#555555"
-                      colorTint="#ffffff"
-                      speed={0.4}
-                      repetition={4}
-                      distortion={0.15}
-                      scale={1}
-                      className="w-full h-full"
-                    />
-                 </div>
+                  <div className="absolute inset-0 z-0 pointer-events-none">
+                     {preferences?.liquidMetalSearchBar !== false ? (
+                       <LiquidMetal
+                         colorBack="#555555"
+                         colorTint="#ffffff"
+                         speed={0.4}
+                         repetition={4}
+                         distortion={0.15}
+                         scale={1}
+                         className="w-full h-full"
+                       />
+                     ) : (
+                       <div className="w-full h-full bg-gradient-to-br from-zinc-700 to-zinc-900" />
+                     )}
+                  </div>
                  <div className={`relative z-10 flex flex-col w-full h-full bg-black transition-all duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${isProfileOpen ? 'rounded-[38px] p-4' : 'rounded-full hover:bg-zinc-900'}`}>
                  <div 
                   onClick={(e) => { if(isProfileOpen) { e.stopPropagation(); setIsProfileOpen(false); } }}

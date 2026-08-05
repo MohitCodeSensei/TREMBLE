@@ -1,14 +1,20 @@
 "use client";
 import React, { useEffect, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
+import { usePlayer } from '../context/PlayerContext';
 
 export default function PointerTrail() {
   const trailRef = useRef(null);
   const pathname = usePathname();
   const [isVisible, setIsVisible] = useState(false);
   const timeoutRef = useRef(null);
+  const { preferences } = usePlayer();
+
+  const isEnabled = preferences?.mousePointerAnimation !== false;
 
   useEffect(() => {
+    if (!isEnabled) return;
+
     let mouseX = typeof window !== 'undefined' ? window.innerWidth / 2 : 0;
     let mouseY = typeof window !== 'undefined' ? window.innerHeight / 2 : 0;
     let trailX = mouseX;
@@ -59,8 +65,9 @@ export default function PointerTrail() {
         cancelAnimationFrame(animId);
       }
     };
-  }, []);
+  }, [isEnabled]);
 
+  if (!isEnabled) return null;
   if (!pathname || pathname.startsWith('/artist') || pathname.startsWith('/trembler') || pathname.startsWith('/library/genre') || pathname.startsWith('/album')) return null;
 
   return (
@@ -72,7 +79,7 @@ export default function PointerTrail() {
         }
       `}</style>
       <div 
-        className="pointer-events-none fixed top-0 left-0 z-[1] mix-blend-screen transition-opacity duration-700 ease-out will-change-transform"
+        className="pointer-events-none fixed top-0 left-0 z-[2] mix-blend-screen transition-opacity duration-700 ease-out will-change-transform"
         style={{ opacity: isVisible ? 1 : 0, animation: 'hueCycle 12s linear infinite' }}
         ref={trailRef}
       >
